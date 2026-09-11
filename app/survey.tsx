@@ -794,21 +794,31 @@ export function Survey({
 
           {question.type === "scale" && (
             <>
-              <ScaleRow
-                max={question.scaleMax}
-                value={typeof value === "number" ? value : undefined}
-                onPick={(n) => {
-                  const next = { ...answers, [key]: n };
-                  setAnswers(next);
-                  setTimeout(() => advance(next), 180);
-                }}
-              />
-              <div className="flex justify-between font-mono text-xs text-muted">
-                <span>{question.scaleMinLabel}</span>
-                <span>{question.scaleMaxLabel}</span>
+              <div className="flex flex-col gap-2">
+                <ScaleRow
+                  max={question.scaleMax}
+                  value={typeof value === "number" ? value : undefined}
+                  onPick={(n) => {
+                    const next = { ...answers, [key]: n };
+                    setAnswers(next);
+                    setTimeout(() => advance(next), 180);
+                  }}
+                />
+                <div className="flex justify-between font-mono text-xs text-muted">
+                  <span>{question.scaleMinLabel}</span>
+                  <span>{question.scaleMaxLabel}</span>
+                </div>
               </div>
+
               {!question.required && (
-                <div className="pt-2 flex justify-center">
+                <div className="pt-2">
+                  <div className="relative my-3 flex items-center">
+                    <div className="flex-grow border-t border-line" />
+                    <span className="shrink-0 px-3 font-mono text-[11px] uppercase tracking-wider text-muted/70">
+                      or
+                    </span>
+                    <div className="flex-grow border-t border-line" />
+                  </div>
                   <button
                     type="button"
                     onClick={() => {
@@ -817,9 +827,17 @@ export function Survey({
                       setAnswers(next);
                       advance(next);
                     }}
-                    className="text-xs text-muted/70 hover:text-ink transition-colors underline py-1"
+                    className="group flex w-full items-center justify-between rounded-xl border border-line bg-card/70 px-4 py-3 text-sm text-ink/90 transition-all duration-150 hover:border-accent/50 hover:bg-card hover:text-ink active:scale-[0.99]"
                   >
-                    No opinion / Never used YouTube tests →
+                    <div className="flex items-center gap-2.5">
+                      <span className="grid h-5 w-5 place-items-center rounded-full border border-line bg-card text-[11px] font-mono text-muted transition-colors group-hover:border-accent/50 group-hover:text-ink">
+                        —
+                      </span>
+                      <span>No opinion / Never used YouTube tests</span>
+                    </div>
+                    <span className="font-mono text-xs text-muted transition-colors group-hover:text-accent">
+                      Skip question →
+                    </span>
                   </button>
                 </div>
               )}
