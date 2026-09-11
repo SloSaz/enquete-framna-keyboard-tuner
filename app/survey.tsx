@@ -2,7 +2,8 @@
 
 import Image from "next/image";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { saveProgressAction, submitResponse } from "./actions";
+import { resetSessionAction, saveProgressAction, submitResponse } from "./actions";
+import { clearDraft, loadDraft, saveDraft, STORAGE_KEY } from "@/lib/storage";
 import type { AnswerValue } from "@/lib/answers";
 import type { Question } from "@/lib/questions";
 
@@ -175,6 +176,136 @@ export function Survey({
   const [startedAt, setStartedAt] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [hp, setHp] = useState("");
+  const [resumedFrom, setResumedFrom] = useState<number | null>(null);
+  const [restored, setRestored] = useState(false);
+
+  // Restore draft from localStorage on mount
+  useEffect(() => {
+    let cancelled = false;
+
+    queueMicrotask(() => {
+      if (cancelled) return;
+      const draft = loadDraft();
+      if (draft) {
+        const targetIndex = Math.min(draft.index, Math.max(0, questions.length - 1));
+        const hasAnswers =
+          Object.keys(draft.answers).length > 0 ||
+          Object.values(draft.others).some((v) => Boolean(v?.trim()));
+
+        const otherOpenMap = { ...draft.otherOpen };
+        for (const [k, v] of Object.entries(draft.others)) {
+          if (v && v.trim() && otherOpenMap[k] === undefined) {
+            otherOpenMap[k] = true;
+          }
+        }
+
+        setAnswers(draft.answers);
+        setOthers(draft.others);
+        setOtherOpen(otherOpenMap);
+        setStartedAt(draft.startedAt);
+        setIndex(targetIndex);
+
+        if (draft.startedAt > 0 || hasAnswers || targetIndex > 0) {
+          setPhase("asking");
+          if (hasAnswers || targetIndex > 0) {
+            setResumedFrom(targetIndex);
+          }
+        }
+      }
+      setRestored(true);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [questions.length]);
+
+  // Sync draft to localStorage after initial restoration
+  useEffect(() => {
+    if (!restored) return;
+
+    if (phase === "done") {
+      clearDraft();
+      return;
+    }
+
+    if (phase === "asking") {
+      saveDraft({
+        index,
+        answers,
+        others,
+        otherOpen,
+        startedAt,
+      });
+    }
+  }, [restored, phase, index, answers, others, otherOpen, startedAt]);
+
+  const stateRef = useRef({ phase, index, answers, others, otherOpen, startedAt, restored });
+  useEffect(() => {
+    stateRef.current = { phase, index, answers, others, otherOpen, startedAt, restored };
+  });
+
+  // Flush on tab hide/unload in case of immediate navigation
+  useEffect(() => {
+    const flushDraft = () => {
+      const cur = stateRef.current;
+      if (cur.restored && cur.phase === "asking") {
+        saveDraft({
+          index: cur.index,
+          answers: cur.answers,
+          others: cur.others,
+          otherOpen: cur.otherOpen,
+          startedAt: cur.startedAt,
+        });
+      }
+    };
+
+    window.addEventListener("pagehide", flushDraft);
+    window.addEventListener("beforeunload", flushDraft);
+    return () => {
+      window.removeEventListener("pagehide", flushDraft);
+      window.removeEventListener("beforeunload", flushDraft);
+    };
+  }, []);
+
+  // Listen to cross-tab storage events
+  useEffect(() => {
+    const onStorage = (event: StorageEvent) => {
+      if (event.key !== STORAGE_KEY) return;
+      if (event.newValue === null) {
+        if (stateRef.current.phase === "asking") {
+          setAnswers({});
+          setOthers({});
+          setOtherOpen({});
+          setIndex(0);
+          setStartedAt(0);
+          setPhase("intro");
+          setError(null);
+          setResumedFrom(null);
+          setBack(false);
+        }
+        return;
+      }
+      try {
+        const parsed = JSON.parse(event.newValue);
+        if (parsed && typeof parsed.index === "number" && stateRef.current.phase === "asking") {
+          const isTyping =
+            document.activeElement?.tagName === "INPUT" ||
+            document.activeElement?.tagName === "TEXTAREA";
+          if (!isTyping) {
+            const targetIndex = Math.min(parsed.index, Math.max(0, questions.length - 1));
+            setAnswers(parsed.answers ?? {});
+            setOthers(parsed.others ?? {});
+            setOtherOpen(parsed.otherOpen ?? {});
+            setIndex(targetIndex);
+          }
+        }
+      } catch {}
+    };
+
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, [questions.length]);
 
   const question = questions[index];
   const key = question ? String(question.order) : "";
@@ -190,7 +321,10 @@ export function Survey({
       const rows = (value ?? {}) as Record<string, number>;
       return Object.keys(rows).length === question.choices.length;
     }
-    if (Array.isArray(value)) return value.length > 0 || Boolean(others[key]);
+    if (question.type === "multi_choice") {
+      const list = Array.isArray(value) ? (value as string[]) : [];
+      return list.length > 0 || Boolean(others[key]?.trim());
+    }
     if (typeof value === "string") return value.trim().length > 0;
     return value !== undefined && value !== null;
   }, [question, value, others, key]);
@@ -208,6 +342,31 @@ export function Survey({
     [hp],
   );
 
+  const resetSurvey = useCallback(() => {
+    const hasData =
+      Object.keys(answers).length > 0 ||
+      Object.values(others).some((v) => Boolean(v?.trim())) ||
+      index > 0;
+
+    if (
+      !hasData ||
+      window.confirm("Are you sure you want to start over? All your saved answers will be cleared.")
+    ) {
+      clearDraft();
+      void resetSessionAction().catch((error) => console.error("session reset failed", error));
+      saveQueue.current = Promise.resolve();
+      setAnswers({});
+      setOthers({});
+      setOtherOpen({});
+      setIndex(0);
+      setStartedAt(0);
+      setPhase("intro");
+      setError(null);
+      setResumedFrom(null);
+      setBack(false);
+    }
+  }, [answers, others, index]);
+
   const finish = useCallback(
     async (final: Answers, finalOthers: Others) => {
       setPhase("saving");
@@ -215,10 +374,11 @@ export function Survey({
       const result = await submitResponse({
         answers: final,
         other: finalOthers,
-        durationSec: (Date.now() - startedAt) / 1000,
+        durationSec: startedAt > 0 ? (Date.now() - startedAt) / 1000 : undefined,
         hp,
       });
       if (result.ok) {
+        clearDraft();
         setPhase("done");
       } else {
         setError([result.error, ...(result.issues ?? [])].join(" "));
@@ -232,6 +392,7 @@ export function Survey({
     (override?: Answers) => {
       const next = override ?? answers;
       setBack(false);
+      setResumedFrom(null);
       if (index + 1 < questions.length) {
         persist(next, others);
         setIndex(index + 1);
@@ -304,7 +465,7 @@ export function Survey({
     return (
       <section className="rise mx-auto flex w-full max-w-xl flex-col gap-7 px-6 py-20">
         <p className="font-mono text-xs uppercase tracking-[0.2em] text-accent">
-          {questions.length} questions · ~3 min · anonymous
+          {questions.length} questions · ~2-3 min · anonymous
         </p>
         <h1 className="text-3xl font-semibold leading-tight tracking-tight sm:text-4xl">{title}</h1>
         <p className="whitespace-pre-line text-[15px] leading-relaxed text-muted">{intro}</p>
@@ -312,8 +473,16 @@ export function Survey({
           <Continue
             label="Start"
             onClick={() => {
-              setStartedAt(Date.now());
+              const now = Date.now();
+              setStartedAt(now);
               setPhase("asking");
+              saveDraft({
+                index: 0,
+                answers: {},
+                others: {},
+                otherOpen: {},
+                startedAt: now,
+              });
             }}
           />
         </div>
@@ -341,8 +510,15 @@ export function Survey({
       <section className="rise mx-auto flex w-full max-w-xl flex-col gap-5 px-6 py-24">
         <h1 className="text-2xl font-semibold tracking-tight">Something went wrong</h1>
         <p className="text-[15px] leading-relaxed text-muted">{error}</p>
-        <div>
+        <div className="flex items-center gap-3">
           <Continue label="Try again" onClick={() => void finish(answers, others)} />
+          <button
+            type="button"
+            onClick={resetSurvey}
+            className="mt-2 rounded-xl border border-line px-5 py-3 text-sm text-muted transition-colors hover:border-accent/50 hover:text-ink"
+          >
+            Start over
+          </button>
         </div>
       </section>
     );
@@ -352,6 +528,38 @@ export function Survey({
 
   return (
     <section className="mx-auto flex w-full max-w-xl flex-1 flex-col gap-8 px-6 py-10 sm:py-16">
+      {resumedFrom !== null && (
+        <aside
+          role="status"
+          aria-live="polite"
+          className="flex items-center justify-between gap-3 rounded-xl border border-accent/40 bg-accent-soft/30 px-4 py-2.5 text-xs text-ink/90"
+        >
+          <div className="flex items-center gap-2">
+            <span className="h-2 w-2 shrink-0 rounded-full bg-accent animate-pulse" />
+            <span>
+              Resumed where you left off (question {resumedFrom + 1} of {questions.length})
+            </span>
+          </div>
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={resetSurvey}
+              className="font-medium text-accent hover:underline"
+            >
+              Start over
+            </button>
+            <button
+              type="button"
+              onClick={() => setResumedFrom(null)}
+              aria-label="Dismiss resume notification"
+              className="text-muted hover:text-ink text-sm leading-none"
+            >
+              ✕
+            </button>
+          </div>
+        </aside>
+      )}
+
       <Progress current={index + (answered ? 1 : 0)} total={questions.length} />
 
       <div key={index} className={`flex flex-1 flex-col gap-6 ${back ? "enter-back" : "enter-forward"}`}>
@@ -409,7 +617,19 @@ export function Survey({
                   <Option
                     shape="check"
                     selected={Boolean(otherOpen[key])}
-                    onClick={() => setOtherOpen((p) => ({ ...p, [key]: !p[key] }))}
+                    onClick={() =>
+                      setOtherOpen((p) => {
+                        const opening = !p[key];
+                        if (!opening) {
+                          setOthers((prev) => {
+                            const copy = { ...prev };
+                            delete copy[key];
+                            return copy;
+                          });
+                        }
+                        return { ...p, [key]: opening };
+                      })
+                    }
                   >
                     Other…
                   </Option>
@@ -498,14 +718,23 @@ export function Survey({
       </div>
 
       <footer className="flex items-center justify-between pt-2">
-        <button
-          type="button"
-          onClick={goBack}
-          disabled={index === 0}
-          className="text-sm text-muted transition-colors hover:text-ink disabled:invisible"
-        >
-          ← Back
-        </button>
+        <div className="flex items-center gap-4">
+          <button
+            type="button"
+            onClick={goBack}
+            disabled={index === 0}
+            className="text-sm text-muted transition-colors hover:text-ink disabled:invisible"
+          >
+            ← Back
+          </button>
+          <button
+            type="button"
+            onClick={resetSurvey}
+            className="text-xs text-muted/60 transition-colors hover:text-muted hover:underline"
+          >
+            Start over
+          </button>
+        </div>
         {phase === "saving" && <span className="font-mono text-xs text-muted">Saving…</span>}
       </footer>
 

@@ -1,0 +1,298 @@
+import type { Question } from "./questions";
+
+export const SEED_QUESTIONS: Question[] = [
+  {
+    id: "q1",
+    order: 1,
+    type: "single_choice",
+    title: "How would you describe your experience with mechanical keyboards?",
+    description: null,
+    required: true,
+    allowOther: false,
+    scaleMax: 5,
+    scaleMinLabel: null,
+    scaleMaxLabel: null,
+    choices: [
+      {
+        value: "Newcomer / Beginner (bought a prebuilt / first board)",
+        label: "Newcomer / Beginner",
+        image: null,
+      },
+      {
+        value: "Enthusiast (customized a few boards, basic modding)",
+        label: "Enthusiast",
+        image: null,
+      },
+      {
+        value: "Expert / Custom Builder (built multiple customs, advanced tuning)",
+        label: "Expert / Custom Builder",
+        image: null,
+      },
+    ],
+  },
+  {
+    id: "q2",
+    order: 2,
+    type: "multi_choice",
+    title:
+      "How do you currently decide which modifications (e.g., lubing, tape mod, foam, plate swaps) to apply to your keyboard? (Checkboxes - Select all that apply)",
+    description: null,
+    required: true,
+    allowOther: true,
+    scaleMax: 5,
+    scaleMinLabel: null,
+    scaleMaxLabel: null,
+    choices: [
+      {
+        value: "YouTube sound tests / build streams",
+        label: "YouTube sound tests / build streams",
+        image: null,
+      },
+      {
+        value: "Pure trial-and-error (trying mods and listening)",
+        label: "Pure trial-and-error",
+        image: null,
+      },
+      {
+        value: "Sound test recordings of my own board",
+        label: "Sound test recordings of my own board",
+        image: null,
+      },
+      {
+        value: "Recommendations on Reddit / Discord / Forums",
+        label: "Recommendations on Reddit / Discord / Forums",
+        image: null,
+      },
+    ],
+  },
+  {
+    id: "q3",
+    order: 3,
+    type: "scale",
+    title:
+      "In my experience, YouTube sound tests accurately represent how a keyboard will sound on my own desk.",
+    description: null,
+    required: true,
+    allowOther: false,
+    scaleMax: 5,
+    scaleMinLabel: "Strongly Disagree",
+    scaleMaxLabel: "Strongly Agree",
+    choices: [],
+  },
+  {
+    id: "q4",
+    order: 4,
+    type: "single_choice",
+    title: "What is your preferred keyboard sound signature?",
+    description: null,
+    required: true,
+    allowOther: false,
+    scaleMax: 5,
+    scaleMinLabel: null,
+    scaleMaxLabel: null,
+    choices: [
+      {
+        value: 'Deep & Low-pitched ("Thock")',
+        label: "Deep & Low-pitched",
+        image: null,
+      },
+      {
+        value: 'Crisp & High-pitched ("Clack")',
+        label: "Crisp & High-pitched",
+        image: null,
+      },
+      {
+        value: "Pop / Marbly",
+        label: "Pop / Marbly",
+        image: null,
+      },
+      {
+        value: "Muted / Silent",
+        label: "Muted / Silent",
+        image: null,
+      },
+      {
+        value: "Balanced / No specific preference",
+        label: "Balanced / No specific preference",
+        image: null,
+      },
+    ],
+  },
+  {
+    id: "q5",
+    order: 5,
+    type: "multi_choice",
+    title: "Which features would you consider most valuable in an acoustic analysis app?",
+    description: null,
+    required: true,
+    allowOther: true,
+    scaleMax: 5,
+    scaleMinLabel: null,
+    scaleMaxLabel: null,
+    choices: [
+      {
+        value: "Real-time frequency spectrum & acoustic analysis via smartphone microphone",
+        label: "Real-time frequency spectrum & acoustic analysis via smartphone microphone",
+        image: "q5-live-spectrum.jpg",
+      },
+      {
+        value: "Objective classification of sound characteristics (pitch, decay, sharpness)",
+        label: "Objective classification of sound characteristics",
+        image: "q5-sound-classification.jpg",
+      },
+      {
+        value: "Before-and-after (A/B) comparison of modifications",
+        label: "Before-and-after comparison of modifications",
+        image: "q5-ab-comparison.jpg",
+      },
+      {
+        value: "Tailored hardware modification suggestions to reach a target sound",
+        label: "Tailored hardware modification suggestions to reach a target sound",
+        image: "q5-modding-suggestions.jpg",
+      },
+      {
+        value: "Reference sound library of switches, plates, and mods",
+        label: "Reference sound library of switches",
+        image: "q5-sound-library.jpg",
+      },
+    ],
+  },
+  {
+    id: "q6",
+    order: 6,
+    type: "multi_choice",
+    title:
+      "Which hardware modifications would you find most valuable to compare side-by-side (A/B testing)? (Select all that apply)",
+    description: null,
+    required: true,
+    allowOther: true,
+    scaleMax: 5,
+    scaleMinLabel: null,
+    scaleMaxLabel: null,
+    choices: [
+      {
+        value: "Switch types (e.g., linear vs. tactile vs. clicky)",
+        label: "Switch types",
+        image: null,
+      },
+      {
+        value: "Lubed vs. unlubed switches",
+        label: "Lubed vs. unlubed switches",
+        image: null,
+      },
+      {
+        value: "Plate materials (e.g., FR4, aluminum, brass, polycarbonate)",
+        label: "Plate materials",
+        image: null,
+      },
+      {
+        value: "Foam & dampening configurations (e.g., case foam, PE sheet, tape mod)",
+        label: "Foam & dampening configurations",
+        image: null,
+      },
+      {
+        value: "Keycap profiles & materials (e.g., Cherry vs. SA / PBT vs. ABS)",
+        label: "Keycap profiles & materials",
+        image: null,
+      },
+    ],
+  },
+  {
+    id: "q7",
+    order: 7,
+    type: "grid",
+    title:
+      "How important are the following aspects to you? (1 = Not important at all, 5 = Extremely important)",
+    description: null,
+    required: true,
+    allowOther: false,
+    scaleMax: 5,
+    scaleMinLabel: "1",
+    scaleMaxLabel: "5",
+    choices: [
+      {
+        value:
+          "Live visual feedback while recording (e.g., an animated frequency spectrum responding as you press keys)",
+        label: "Live visual feedback while recording",
+        image: null,
+      },
+      {
+        value: "Detailed acoustic telemetry reports (frequency spectrum, resonance, decay time)",
+        label: "Detailed acoustic telemetry reports",
+        image: null,
+      },
+      {
+        value: "Offline capability (record and view basic acoustic metrics without internet)",
+        label: "Offline capability",
+        image: null,
+      },
+      {
+        value: "Clear, actionable hardware modding advice based on your sound",
+        label: "Actionable modding advice",
+        image: null,
+      },
+    ],
+  },
+  {
+    id: "q8",
+    order: 8,
+    type: "multi_choice",
+    title: "What is your preferred format for receiving sound recommendations?",
+    description: null,
+    required: true,
+    allowOther: true,
+    scaleMax: 5,
+    scaleMinLabel: null,
+    scaleMaxLabel: null,
+    choices: [
+      {
+        value: 'Concrete modding steps (e.g., "Apply 2 layers of tape mod, lube switch housings")',
+        label: "Concrete modding steps",
+        image: null,
+      },
+      {
+        value: "Hardware component advice (e.g., switch type suggestions, plate material swaps)",
+        label: "Hardware component advice",
+        image: null,
+      },
+      {
+        value: "Visual acoustic charts (e.g., target curve vs. your current sound spectrum)",
+        label: "Visual acoustic charts",
+        image: null,
+      },
+      {
+        value:
+          'Profile matching (e.g., "Your sound currently matches 85% with a stock aluminum build")',
+        label: "Profile matching",
+        image: null,
+      },
+    ],
+  },
+  {
+    id: "q9",
+    order: 9,
+    type: "paragraph",
+    title: "Do you have any specific features or unique ideas you would like to see in this app?",
+    description: null,
+    required: false,
+    allowOther: false,
+    scaleMax: 5,
+    scaleMinLabel: null,
+    scaleMaxLabel: null,
+    choices: [],
+  },
+  {
+    id: "q10",
+    order: 10,
+    type: "short_text",
+    title: "Optional: Follow-up Interview",
+    description:
+      "Would you be open to a short 10–15 minute text chat or voice call on Discord to share your modding process? If so, please leave your Discord handle or email below:",
+    required: false,
+    allowOther: false,
+    scaleMax: 5,
+    scaleMinLabel: null,
+    scaleMaxLabel: null,
+    choices: [],
+  },
+];

@@ -1,13 +1,18 @@
 const NOTION_VERSION = "2022-06-28";
 
 export class NotionError extends Error {
+  readonly status: number;
+  readonly code?: string;
+
   constructor(
     message: string,
-    readonly status: number,
-    readonly code?: string,
+    status: number,
+    code?: string,
   ) {
     super(message);
     this.name = "NotionError";
+    this.status = status;
+    this.code = code;
   }
 }
 

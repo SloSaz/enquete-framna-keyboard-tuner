@@ -83,20 +83,30 @@ function toQuestion(page: NotionPage): Question | null {
 
 export const QUESTIONS_TAG = "survey-questions";
 
-async function loadQuestions(): Promise<Question[]> {
-  const { questions } = databaseIds();
-  const res = await notion<{ results: NotionPage[] }>(`databases/${questions}/query`, {
-    method: "POST",
-    body: {
-      filter: { property: "Active", checkbox: { equals: true } },
-      sorts: [{ property: "Order", direction: "ascending" }],
-      page_size: 100,
-    },
-  });
+import { SEED_QUESTIONS } from "./seed-questions";
+export { SEED_QUESTIONS };
 
-  return res.results
-    .map(toQuestion)
-    .filter((question): question is Question => question !== null && question.title !== "");
+async function loadQuestions(): Promise<Question[]> {
+  try {
+    const { questions } = databaseIds();
+    const res = await notion<{ results: NotionPage[] }>(`databases/${questions}/query`, {
+      method: "POST",
+      body: {
+        filter: { property: "Active", checkbox: { equals: true } },
+        sorts: [{ property: "Order", direction: "ascending" }],
+        page_size: 100,
+      },
+    });
+
+    const parsed = res.results
+      .map(toQuestion)
+      .filter((question): question is Question => question !== null && question.title !== "");
+
+    if (parsed.length > 0) return parsed;
+  } catch (error) {
+    console.warn("Could not load questions from Notion, falling back to seed questions:", error);
+  }
+  return SEED_QUESTIONS;
 }
 
 // The Notion query is a POST, which Next's fetch cache never stores, so the parsed

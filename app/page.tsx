@@ -7,7 +7,7 @@ const TITLE = "Keyboard Sound Profiling App Survey";
 
 const INTRO = `Hi all! I am a Software Engineering graduation student at Hogeschool Windesheim (Netherlands), conducting an open research project on acoustic telemetry and sound profiling for mechanical keyboards.
 
-This survey takes approximately 3 to 4 minutes. Your answers are completely anonymous, not used for commercial purposes, and strictly analyzed for academic software architecture research. Thank you for helping out!`;
+This survey takes approximately 2 to 3 minutes. Your answers are completely anonymous, not used for commercial purposes, and strictly analyzed for academic software architecture research. Thank you for helping out!`;
 
 export default async function Home() {
   let questions: Question[];

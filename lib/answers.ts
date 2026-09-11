@@ -10,9 +10,11 @@ export type Submission = {
 };
 
 export class ValidationError extends Error {
-  constructor(readonly issues: string[]) {
+  readonly issues: string[];
+  constructor(issues: string[]) {
     super(issues.join("; "));
     this.name = "ValidationError";
+    this.issues = issues;
   }
 }
 

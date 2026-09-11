@@ -1,5 +1,6 @@
 "use server";
 
+import { clearSession } from "@/lib/session";
 import { saveProgress, submit, type IncomingSubmission, type SubmitResult } from "@/lib/submit";
 
 export async function saveProgressAction(payload: IncomingSubmission): Promise<SubmitResult> {
@@ -8,4 +9,8 @@ export async function saveProgressAction(payload: IncomingSubmission): Promise<S
 
 export async function submitResponse(payload: IncomingSubmission): Promise<SubmitResult> {
   return submit(payload);
+}
+
+export async function resetSessionAction(): Promise<void> {
+  await clearSession();
 }
