@@ -13,6 +13,7 @@ each submission is written as one row to a second Notion database.
 | `NOTION_ANSWERS_DB_ID` | no | Destination for submissions |
 | `DEEPINFRA_KEY` | yes | Image generation, local only — never needed on Vercel |
 
+Start from the template: `cp .env.local.example .env.local`.
 Locally these live in `.env.local` (gitignored). On Vercel they are project
 environment variables. The token is only ever read in server code — it is never
 sent to the browser.
