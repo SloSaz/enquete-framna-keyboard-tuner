@@ -1,0 +1,183 @@
+{
+  "title": "Keyboard Sound Profiling App Survey",
+  "description": "Hi all! I am a Software Engineering graduation student at Hogeschool Windesheim (Netherlands), conducting an open research project on acoustic telemetry and sound profiling for mechanical keyboards.\nThis survey takes approximately 3 to 4 minutes. Your answers are completely anonymous, not used for commercial purposes, and strictly analyzed for academic software architecture research. Thank you for helping out!",
+  "items": [
+    {
+      "order": 1,
+      "type": "single_choice",
+      "title": "How would you describe your experience with mechanical keyboards?",
+      "description": null,
+      "required": true,
+      "options": [
+        "Newcomer / Beginner (bought a prebuilt / first board)",
+        "Enthusiast (customized a few boards, basic modding)",
+        "Expert / Custom Builder (built multiple customs, advanced tuning)"
+      ],
+      "allowOther": false,
+      "labels": [
+        "Newcomer / Beginner",
+        "Enthusiast",
+        "Expert / Custom Builder"
+      ]
+    },
+    {
+      "order": 2,
+      "type": "multi_choice",
+      "title": "How do you currently decide which modifications (e.g., lubing, tape mod, foam, plate swaps) to apply to your keyboard? (Checkboxes - Select all that apply)",
+      "description": null,
+      "required": true,
+      "options": [
+        "YouTube sound tests / build streams",
+        "Pure trial-and-error (trying mods and listening)",
+        "Sound test recordings of my own board",
+        "Recommendations on Reddit / Discord / Forums"
+      ],
+      "allowOther": true,
+      "labels": [
+        "YouTube sound tests / build streams",
+        "Pure trial-and-error",
+        "Sound test recordings of my own board",
+        "Recommendations on Reddit / Discord / Forums"
+      ]
+    },
+    {
+      "order": 3,
+      "type": "scale",
+      "title": "In my experience, YouTube sound tests accurately represent how a keyboard will sound on my own desk.",
+      "description": null,
+      "required": true,
+      "min": 1,
+      "max": 5,
+      "minLabel": "Strongly Disagree",
+      "maxLabel": "Strongly Agree"
+    },
+    {
+      "order": 4,
+      "type": "single_choice",
+      "title": "What is your preferred keyboard sound signature?",
+      "description": null,
+      "required": true,
+      "options": [
+        "Deep & Low-pitched (\"Thock\")",
+        "Crisp & High-pitched (\"Clack\")",
+        "Pop / Marbly",
+        "Muted / Silent",
+        "Balanced / No specific preference"
+      ],
+      "allowOther": false,
+      "labels": [
+        "Deep & Low-pitched",
+        "Crisp & High-pitched",
+        "Pop / Marbly",
+        "Muted / Silent",
+        "Balanced / No specific preference"
+      ]
+    },
+    {
+      "order": 5,
+      "type": "multi_choice",
+      "title": "Which features would you consider most valuable in an acoustic analysis app?",
+      "description": null,
+      "required": true,
+      "options": [
+        "Real-time frequency spectrum & acoustic analysis via smartphone microphone",
+        "Objective classification of sound characteristics (pitch, decay, sharpness)",
+        "Before-and-after (A/B) comparison of modifications",
+        "Tailored hardware modification suggestions to reach a target sound",
+        "Reference sound library of switches, plates, and mods"
+      ],
+      "allowOther": true,
+      "labels": [
+        "Real-time frequency spectrum & acoustic analysis via smartphone microphone",
+        "Objective classification of sound characteristics",
+        "Before-and-after comparison of modifications",
+        "Tailored hardware modification suggestions to reach a target sound",
+        "Reference sound library of switches"
+      ],
+      "images": [
+        "q5-live-spectrum.jpg",
+        "q5-sound-classification.jpg",
+        "q5-ab-comparison.jpg",
+        "q5-modding-suggestions.jpg",
+        "q5-sound-library.jpg"
+      ]
+    },
+    {
+      "order": 6,
+      "type": "multi_choice",
+      "title": "Which hardware modifications would you find most valuable to compare side-by-side (A/B testing)? (Select all that apply)",
+      "description": null,
+      "required": true,
+      "options": [
+        "Switch types (e.g., linear vs. tactile vs. clicky)",
+        "Lubed vs. unlubed switches",
+        "Plate materials (e.g., FR4, aluminum, brass, polycarbonate)",
+        "Foam & dampening configurations (e.g., case foam, PE sheet, tape mod)",
+        "Keycap profiles & materials (e.g., Cherry vs. SA / PBT vs. ABS)"
+      ],
+      "allowOther": true,
+      "labels": [
+        "Switch types",
+        "Lubed vs. unlubed switches",
+        "Plate materials",
+        "Foam & dampening configurations",
+        "Keycap profiles & materials"
+      ]
+    },
+    {
+      "order": 7,
+      "type": "grid",
+      "title": "How important are the following aspects to you? (1 = Not important at all, 5 = Extremely important)",
+      "description": null,
+      "required": true,
+      "min": 1,
+      "max": 5,
+      "rows": [
+        "Live visual feedback while recording (e.g., an animated frequency spectrum responding as you press keys)",
+        "Detailed acoustic telemetry reports (frequency spectrum, resonance, decay time)",
+        "Offline capability (record and view basic acoustic metrics without internet)",
+        "Clear, actionable hardware modding advice based on your sound"
+      ],
+      "rowLabels": [
+        "Live visual feedback while recording",
+        "Detailed acoustic telemetry reports",
+        "Offline capability",
+        "Actionable modding advice"
+      ]
+    },
+    {
+      "order": 8,
+      "type": "multi_choice",
+      "title": "What is your preferred format for receiving sound recommendations?",
+      "description": null,
+      "required": true,
+      "options": [
+        "Concrete modding steps (e.g., \"Apply 2 layers of tape mod, lube switch housings\")",
+        "Hardware component advice (e.g., switch type suggestions, plate material swaps)",
+        "Visual acoustic charts (e.g., target curve vs. your current sound spectrum)",
+        "Profile matching (e.g., \"Your sound currently matches 85% with a stock aluminum build\")"
+      ],
+      "allowOther": true,
+      "labels": [
+        "Concrete modding steps",
+        "Hardware component advice",
+        "Visual acoustic charts",
+        "Profile matching"
+      ]
+    },
+    {
+      "order": 9,
+      "type": "paragraph",
+      "title": "Do you have any specific features or unique ideas you would like to see in this app?",
+      "description": null,
+      "required": false
+    },
+    {
+      "order": 10,
+      "type": "short_text",
+      "title": "Optional: Follow-up Interview",
+      "description": "Would you be open to a short 10\u201315 minute text chat or voice call on Discord to share your modding process? If so, please leave your Discord handle or email below:",
+      "required": false
+    }
+  ]
+}
