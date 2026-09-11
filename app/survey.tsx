@@ -1,8 +1,8 @@
 "use client";
 
 import Image from "next/image";
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { submitResponse } from "./actions";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { saveProgressAction, submitResponse } from "./actions";
 import type { AnswerValue } from "@/lib/answers";
 import type { Question } from "@/lib/questions";
 
@@ -195,9 +195,23 @@ export function Survey({
     return value !== undefined && value !== null;
   }, [question, value, others, key]);
 
+  // Progress saves are chained so two patches of the same row can never land out of
+  // order, and so the final submit runs after every pending save has settled.
+  const saveQueue = useRef<Promise<unknown>>(Promise.resolve());
+
+  const persist = useCallback(
+    (snapshot: Answers, snapshotOthers: Others) => {
+      saveQueue.current = saveQueue.current
+        .then(() => saveProgressAction({ answers: snapshot, other: snapshotOthers, hp }))
+        .catch((error) => console.error("progress save failed", error));
+    },
+    [hp],
+  );
+
   const finish = useCallback(
     async (final: Answers, finalOthers: Others) => {
       setPhase("saving");
+      await saveQueue.current.catch(() => {});
       const result = await submitResponse({
         answers: final,
         other: finalOthers,
@@ -219,12 +233,13 @@ export function Survey({
       const next = override ?? answers;
       setBack(false);
       if (index + 1 < questions.length) {
+        persist(next, others);
         setIndex(index + 1);
       } else {
         void finish(next, others);
       }
     },
-    [answers, index, questions.length, others, finish],
+    [answers, index, questions.length, others, finish, persist],
   );
 
   const goBack = useCallback(() => {

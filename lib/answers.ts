@@ -52,7 +52,12 @@ const isBlank = (value: AnswerValue): boolean =>
   (Array.isArray(value) && value.length === 0) ||
   (typeof value === "object" && !Array.isArray(value) && Object.keys(value).length === 0);
 
-export function validate(questions: Question[], submission: Submission): string[] {
+// requireAll is off for progress saves: later questions are legitimately unanswered.
+export function validate(
+  questions: Question[],
+  submission: Submission,
+  { requireAll }: { requireAll: boolean },
+): string[] {
   const issues: string[] = [];
 
   for (const question of questions) {
@@ -65,7 +70,7 @@ export function validate(questions: Question[], submission: Submission): string[
     }
     // An "Other" write-in satisfies a required choice question on its own.
     const other = submission.other?.[String(question.order)]?.trim();
-    if (question.required && isBlank(value) && !other) {
+    if (requireAll && question.required && isBlank(value) && !other) {
       issues.push(`Q${question.order} is required`);
       continue;
     }
@@ -120,16 +125,20 @@ const asText = (value: string) => ({
   rich_text: value ? [{ text: { content: value.slice(0, TEXT_LIMIT) } }] : [],
 });
 
-function toProperties(questions: Question[], submission: Submission, responseId: string) {
-  const properties: Record<string, unknown> = {
-    "Response ID": { title: [{ text: { content: responseId } }] },
-    "Submitted at": { date: { start: new Date().toISOString() } },
-    Questions: { relation: questions.map((question) => ({ id: question.id })) },
-  };
+const STATUS_IN_PROGRESS = "In progress";
+const STATUS_COMPLETE = "Complete";
 
-  if (typeof submission.durationSec === "number" && Number.isFinite(submission.durationSec)) {
-    properties["Duration (s)"] = { number: Math.round(submission.durationSec) };
-  }
+export function countAnswered(questions: Question[], submission: Submission): number {
+  return questions.filter((question) => {
+    const key = String(question.order);
+    return !isBlank(submission.answers[key] ?? null) || Boolean(submission.other?.[key]?.trim());
+  }).length;
+}
+
+// Only answered questions produce properties, so a progress save never blanks a
+// column the respondent has not reached yet.
+function answerProperties(questions: Question[], submission: Submission) {
+  const properties: Record<string, unknown> = {};
 
   for (const question of questions) {
     const key = String(question.order);
@@ -165,31 +174,64 @@ function toProperties(questions: Question[], submission: Submission, responseId:
     }
 
     const other = submission.other?.[key];
-    if (mapping.other && other) {
-      properties[mapping.other] = asText(other);
-    }
+    if (mapping.other && other) properties[mapping.other] = asText(other);
   }
 
   return properties;
 }
 
-export async function saveSubmission(
+function assertValid(questions: Question[], submission: Submission, requireAll: boolean) {
+  const issues = validate(questions, submission, { requireAll });
+  if (issues.length) throw new ValidationError(issues);
+}
+
+export async function createResponse(
   questions: Question[],
   submission: Submission,
-): Promise<{ responseId: string }> {
-  const issues = validate(questions, submission);
-  if (issues.length) throw new ValidationError(issues);
+): Promise<{ responseId: string; pageId: string }> {
+  assertValid(questions, submission, false);
 
   const responseId = `r_${crypto.randomUUID().slice(0, 8)}`;
   const { answers } = databaseIds();
 
-  await notion("pages", {
+  const page = await notion<{ id: string }>("pages", {
     method: "POST",
     body: {
       parent: { database_id: answers },
-      properties: toProperties(questions, submission, responseId),
+      properties: {
+        "Response ID": { title: [{ text: { content: responseId } }] },
+        "Started at": { date: { start: new Date().toISOString() } },
+        Status: { select: { name: STATUS_IN_PROGRESS } },
+        Answered: { number: countAnswered(questions, submission) },
+        Questions: { relation: questions.map((question) => ({ id: question.id })) },
+        ...answerProperties(questions, submission),
+      },
     },
   });
 
-  return { responseId };
+  return { responseId, pageId: page.id };
+}
+
+export async function updateResponse(
+  pageId: string,
+  questions: Question[],
+  submission: Submission,
+  { complete }: { complete: boolean },
+): Promise<void> {
+  assertValid(questions, submission, complete);
+
+  const properties: Record<string, unknown> = {
+    Answered: { number: countAnswered(questions, submission) },
+    ...answerProperties(questions, submission),
+  };
+
+  if (complete) {
+    properties["Status"] = { select: { name: STATUS_COMPLETE } };
+    properties["Submitted at"] = { date: { start: new Date().toISOString() } };
+    if (typeof submission.durationSec === "number" && Number.isFinite(submission.durationSec)) {
+      properties["Duration (s)"] = { number: Math.round(submission.durationSec) };
+    }
+  }
+
+  await notion(`pages/${pageId}`, { method: "PATCH", body: { properties } });
 }

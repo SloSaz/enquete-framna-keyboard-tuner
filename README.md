@@ -12,6 +12,7 @@ each submission is written as one row to a second Notion database.
 | `NOTION_QUESTIONS_DB_ID` | no | Source of the live questionnaire |
 | `NOTION_ANSWERS_DB_ID` | no | Destination for submissions |
 | `DEEPINFRA_KEY` | yes | Image generation, local only — never needed on Vercel |
+| `SESSION_SECRET` | yes | Optional. Signs the resume cookie; falls back to `NOTION_PAT` |
 
 Start from the template: `cp .env.local.example .env.local`.
 Locally these live in `.env.local` (gitignored). On Vercel they are project
@@ -86,9 +87,33 @@ curl -X POST http://localhost:3000/api/responses \
 That route shares its validation and persistence path with the server action the UI
 uses, so it is a genuine test of the write path.
 
+## Partial responses
+
+The response row is created on the **first answer**, not on page load, and is patched
+each time the respondent advances. Someone who quits at question 3 leaves a row holding
+questions 1-2, marked `In progress` with no `Submitted at`. Finishing sets
+`Status = Complete`, stamps `Submitted at` and `Duration (s)`.
+
+Filter on `Status = Complete` for headline figures; the `In progress` rows are your
+drop-off data, and `Answered` shows how far each person got.
+
+The row id is held in a signed, httpOnly cookie lasting two hours, so a respondent who
+returns resumes the same row instead of creating a second. The signature means a
+forged cookie cannot be pointed at somebody else's row — it is rejected and simply
+starts a fresh response. `SESSION_SECRET` overrides the signing key; without it the
+integration token is used, so rotating the token invalidates in-flight sessions.
+
+Progress saves are chained client-side so two patches of the same row cannot land out
+of order, and the final submit waits for pending saves to settle. This costs roughly
+10-14 Notion writes per respondent instead of one, which is well inside Notion's
+per-integration rate limit for a survey but is worth remembering under heavy
+concurrent load.
+
 ## Abuse control
 
 A hidden honeypot field is silently accepted and discarded. Submissions are rate
-limited to 5 per hour per IP, held in process memory — on serverless this resets on
+limited to 5 **new responses** per hour per IP — progress saves within a response are
+not counted, or a respondent would lock themselves out partway through. The counter is
+held in process memory — on serverless this resets on
 cold start and is not shared between instances, so it slows casual abuse rather than
 preventing it. Move it to a shared store if the survey is widely circulated.

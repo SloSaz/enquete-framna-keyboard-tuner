@@ -107,7 +107,12 @@ async function ensureAnswersDb(questionsDbId) {
     description: [{ text: { content: "One row per submission. Written by the survey site; do not edit by hand." } }],
     properties: {
       "Response ID": { title: {} },
+      Status: {
+        select: { options: [{ name: "In progress" }, { name: "Complete" }] },
+      },
+      "Started at": { date: {} },
       "Submitted at": { date: {} },
+      Answered: { number: {} },
       "Duration (s)": { number: {} },
       "Q1 Experience level": single(1),
       "Q2 Mod decision sources": multi(2),
@@ -170,10 +175,26 @@ async function seedQuestions(dbId) {
   }
 }
 
+// A database created before a column existed is patched rather than recreated.
+async function ensureAnswerColumns(db) {
+  const wanted = {
+    Status: { select: { options: [{ name: "In progress" }, { name: "Complete" }] } },
+    "Started at": { date: {} },
+    Answered: { number: {} },
+  };
+  const missing = Object.fromEntries(
+    Object.entries(wanted).filter(([name]) => !(name in db.properties)),
+  );
+  if (!Object.keys(missing).length) return;
+  await notion(`databases/${db.id}`, "PATCH", { properties: missing });
+  console.log(`  added columns: ${Object.keys(missing).join(", ")}`);
+}
+
 const q = await ensureQuestionsDb();
 console.log(`${q.created ? "created" : "reusing"} "${QUESTIONS_TITLE}" ${q.db.id}`);
 const a = await ensureAnswersDb(q.db.id);
 console.log(`${a.created ? "created" : "reusing"} "${ANSWERS_TITLE}"  ${a.db.id}`);
+await ensureAnswerColumns(a.db);
 await seedQuestions(q.db.id);
 
 console.log(`\nAdd these to .env.local and to Vercel (not secret, but environment-specific):`);
