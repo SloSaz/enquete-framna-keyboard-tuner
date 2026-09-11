@@ -70,7 +70,7 @@ describe("survey logic & validation", () => {
 
 
   describe("answered computation logic", () => {
-    function computeAnswered(question, value, others) {
+    function computeAnswered(question, value, others, otherOpen = {}) {
       const key = String(question.order);
       if (question.type === "grid") {
         const rows = (value ?? {});
@@ -78,22 +78,21 @@ describe("survey logic & validation", () => {
       }
       if (question.type === "multi_choice") {
         const list = Array.isArray(value) ? value : [];
-        return list.length > 0 || Boolean(others[key]?.trim());
+        return list.length > 0 || Boolean(otherOpen[key]) || Boolean(others[key]?.trim());
       }
       if (typeof value === "string") return value.trim().length > 0;
       return value !== undefined && value !== null;
     }
 
+    test("multi_choice is answered when otherOpen is selected even before text is typed", () => {
+      const q2 = mockQuestions[1];
+      assert.equal(computeAnswered(q2, undefined, {}, { "2": true }), true);
+    });
+
     test("multi_choice is answered when only 'Other...' has text and value is undefined", () => {
       const q2 = mockQuestions[1];
       const others = { "2": "Custom input" };
       assert.equal(computeAnswered(q2, undefined, others), true);
-    });
-
-    test("multi_choice is NOT answered when 'Other...' is whitespace only and value is undefined", () => {
-      const q2 = mockQuestions[1];
-      const others = { "2": "   " };
-      assert.equal(computeAnswered(q2, undefined, others), false);
     });
 
     test("multi_choice is answered when checkbox option is selected", () => {

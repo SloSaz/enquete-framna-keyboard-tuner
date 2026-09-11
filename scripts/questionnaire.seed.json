@@ -30,14 +30,16 @@
         "YouTube sound tests / build streams",
         "Pure trial-and-error (trying mods and listening)",
         "Sound test recordings of my own board",
-        "Recommendations on Reddit / Discord / Forums"
+        "Recommendations on Reddit / Discord / Forums",
+        "I haven't modified my keyboard yet / None"
       ],
       "allowOther": true,
       "labels": [
         "YouTube sound tests / build streams",
         "Pure trial-and-error",
         "Sound test recordings of my own board",
-        "Recommendations on Reddit / Discord / Forums"
+        "Recommendations on Reddit / Discord / Forums",
+        "Haven't modded yet / None"
       ]
     },
     {
@@ -45,7 +47,7 @@
       "type": "scale",
       "title": "In my experience, YouTube sound tests accurately represent how a keyboard will sound on my own desk.",
       "description": null,
-      "required": true,
+      "required": false,
       "min": 1,
       "max": 5,
       "minLabel": "Strongly Disagree",
@@ -113,7 +115,8 @@
         "Lubed vs. unlubed switches",
         "Plate materials (e.g., FR4, aluminum, brass, polycarbonate)",
         "Foam & dampening configurations (e.g., case foam, PE sheet, tape mod)",
-        "Keycap profiles & materials (e.g., Cherry vs. SA / PBT vs. ABS)"
+        "Keycap profiles & materials (e.g., Cherry vs. SA / PBT vs. ABS)",
+        "None / Not interested in A/B testing"
       ],
       "allowOther": true,
       "labels": [
@@ -121,7 +124,8 @@
         "Lubed vs. unlubed switches",
         "Plate materials",
         "Foam & dampening configurations",
-        "Keycap profiles & materials"
+        "Keycap profiles & materials",
+        "Not interested in A/B testing"
       ]
     },
     {

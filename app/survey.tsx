@@ -323,11 +323,11 @@ export function Survey({
     }
     if (question.type === "multi_choice") {
       const list = Array.isArray(value) ? (value as string[]) : [];
-      return list.length > 0 || Boolean(others[key]?.trim());
+      return list.length > 0 || Boolean(otherOpen[key]) || Boolean(others[key]?.trim());
     }
     if (typeof value === "string") return value.trim().length > 0;
     return value !== undefined && value !== null;
-  }, [question, value, others, key]);
+  }, [question, value, others, otherOpen, key]);
 
   // Progress saves are chained so two patches of the same row can never land out of
   // order, and so the final submit runs after every pending save has settled.
@@ -393,14 +393,23 @@ export function Survey({
       const next = override ?? answers;
       setBack(false);
       setResumedFrom(null);
+
+      const nextOthers = { ...others };
+      for (const [k, isOpen] of Object.entries(otherOpen)) {
+        if (isOpen && (!nextOthers[k] || !nextOthers[k].trim())) {
+          nextOthers[k] = "Other";
+        }
+      }
+      setOthers(nextOthers);
+
       if (index + 1 < questions.length) {
-        persist(next, others);
+        persist(next, nextOthers);
         setIndex(index + 1);
       } else {
-        void finish(next, others);
+        void finish(next, nextOthers);
       }
     },
-    [answers, index, questions.length, others, finish, persist],
+    [answers, index, questions.length, others, otherOpen, finish, persist],
   );
 
   const goBack = useCallback(() => {
@@ -422,9 +431,36 @@ export function Survey({
   const toggleMulti = useCallback(
     (label: string) => {
       const current = Array.isArray(value) ? (value as string[]) : [];
+      const isNone =
+        label.toLowerCase().includes("haven't modded") ||
+        label.toLowerCase().includes("not interested");
+
+      if (isNone) {
+        if (current.includes(label)) {
+          setValue(key, []);
+        } else {
+          setValue(key, [label]);
+          setOtherOpen((p) => ({ ...p, [key]: false }));
+          setOthers((p) => {
+            const copy = { ...p };
+            delete copy[key];
+            return copy;
+          });
+        }
+        return;
+      }
+
+      const withoutNone = current.filter(
+        (x) =>
+          !x.toLowerCase().includes("haven't modded") &&
+          !x.toLowerCase().includes("not interested"),
+      );
+
       setValue(
         key,
-        current.includes(label) ? current.filter((x) => x !== label) : [...current, label],
+        withoutNone.includes(label)
+          ? withoutNone.filter((x) => x !== label)
+          : [...withoutNone, label],
       );
     },
     [value, key, setValue],
@@ -626,6 +662,8 @@ export function Survey({
                             delete copy[key];
                             return copy;
                           });
+                        } else if (!others[key]) {
+                          setOthers((prev) => ({ ...prev, [key]: "Other" }));
                         }
                         return { ...p, [key]: opening };
                       })
@@ -636,9 +674,18 @@ export function Survey({
                   {otherOpen[key] && (
                     <input
                       autoFocus
-                      value={others[key] ?? ""}
-                      onChange={(e) => setOthers((p) => ({ ...p, [key]: e.target.value }))}
-                      placeholder="Tell us what else"
+                      value={others[key] === "Other" ? "" : (others[key] ?? "")}
+                      onChange={(e) => {
+                        const text = e.target.value;
+                        setOthers((p) => ({ ...p, [key]: text.trim() ? text : "Other" }));
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && (answered || !question.required)) {
+                          e.preventDefault();
+                          advance();
+                        }
+                      }}
+                      placeholder="Tell us what else (optional)"
                       className="rounded-xl border border-line bg-card/70 px-4 py-3 text-[15px] outline-none placeholder:text-muted focus:border-accent"
                     />
                   )}
@@ -663,6 +710,22 @@ export function Survey({
                 <span>{question.scaleMinLabel}</span>
                 <span>{question.scaleMaxLabel}</span>
               </div>
+              {!question.required && (
+                <div className="pt-2 flex justify-center">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const next = { ...answers };
+                      delete next[key];
+                      setAnswers(next);
+                      advance(next);
+                    }}
+                    className="text-xs text-muted/70 hover:text-ink transition-colors underline py-1"
+                  >
+                    No opinion / Never used YouTube tests →
+                  </button>
+                </div>
+              )}
             </>
           )}
 

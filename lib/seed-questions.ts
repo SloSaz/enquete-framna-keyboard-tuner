@@ -63,6 +63,11 @@ export const SEED_QUESTIONS: Question[] = [
         label: "Recommendations on Reddit / Discord / Forums",
         image: null,
       },
+      {
+        value: "I haven't modified my keyboard yet / None",
+        label: "Haven't modded yet / None",
+        image: null,
+      },
     ],
   },
   {
@@ -72,7 +77,7 @@ export const SEED_QUESTIONS: Question[] = [
     title:
       "In my experience, YouTube sound tests accurately represent how a keyboard will sound on my own desk.",
     description: null,
-    required: true,
+    required: false,
     allowOther: false,
     scaleMax: 5,
     scaleMinLabel: "Strongly Disagree",
@@ -193,6 +198,11 @@ export const SEED_QUESTIONS: Question[] = [
       {
         value: "Keycap profiles & materials (e.g., Cherry vs. SA / PBT vs. ABS)",
         label: "Keycap profiles & materials",
+        image: null,
+      },
+      {
+        value: "None / Not interested in A/B testing",
+        label: "Not interested in A/B testing",
         image: null,
       },
     ],
