@@ -5,7 +5,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { resetSessionAction, saveProgressAction, submitResponse } from "./actions";
 import { clearDraft, loadDraft, saveDraft, STORAGE_KEY } from "@/lib/storage";
 import type { AnswerValue } from "@/lib/answers";
-import type { Question } from "@/lib/questions";
+import {
+  getActiveIndex,
+  getActiveQuestions,
+  getNextQuestionIndex,
+  getPrevQuestionIndex,
+  isQuestionSkipped,
+  type Question,
+} from "@/lib/questions";
 
 type Answers = Record<string, AnswerValue>;
 type Others = Record<string, string>;
@@ -187,12 +194,32 @@ export function Survey({
       if (cancelled) return;
       const draft = loadDraft();
       if (draft) {
-        const targetIndex = Math.min(draft.index, Math.max(0, questions.length - 1));
+        let targetIndex = Math.min(draft.index, Math.max(0, questions.length - 1));
+        if (
+          targetIndex < questions.length &&
+          isQuestionSkipped(questions[targetIndex].order, draft.answers, draft.others)
+        ) {
+          const nextIdx = getNextQuestionIndex(targetIndex, questions, draft.answers, draft.others);
+          targetIndex =
+            nextIdx < questions.length
+              ? nextIdx
+              : getPrevQuestionIndex(targetIndex, questions, draft.answers, draft.others);
+          if (targetIndex < 0) targetIndex = 0;
+        }
+
+        if (isQuestionSkipped(6, draft.answers, draft.others)) {
+          delete draft.answers["6"];
+          delete draft.others["6"];
+        }
+
         const hasAnswers =
           Object.keys(draft.answers).length > 0 ||
           Object.values(draft.others).some((v) => Boolean(v?.trim()));
 
         const otherOpenMap = { ...draft.otherOpen };
+        if (isQuestionSkipped(6, draft.answers, draft.others)) {
+          delete otherOpenMap["6"];
+        }
         for (const [k, v] of Object.entries(draft.others)) {
           if (v && v.trim() && otherOpenMap[k] === undefined) {
             otherOpenMap[k] = true;
@@ -211,6 +238,7 @@ export function Survey({
             setResumedFrom(targetIndex);
           }
         }
+
       }
       setRestored(true);
     });
@@ -218,7 +246,8 @@ export function Survey({
     return () => {
       cancelled = true;
     };
-  }, [questions.length]);
+  }, [questions]);
+
 
   // Sync draft to localStorage after initial restoration
   useEffect(() => {
@@ -293,19 +322,42 @@ export function Survey({
             document.activeElement?.tagName === "INPUT" ||
             document.activeElement?.tagName === "TEXTAREA";
           if (!isTyping) {
-            const targetIndex = Math.min(parsed.index, Math.max(0, questions.length - 1));
-            setAnswers(parsed.answers ?? {});
-            setOthers(parsed.others ?? {});
-            setOtherOpen(parsed.otherOpen ?? {});
+            let targetIndex = Math.min(parsed.index, Math.max(0, questions.length - 1));
+            const newAnswers = parsed.answers ?? {};
+            const newOthers = parsed.others ?? {};
+            if (
+              targetIndex < questions.length &&
+              isQuestionSkipped(questions[targetIndex].order, newAnswers, newOthers)
+            ) {
+              const nextIdx = getNextQuestionIndex(targetIndex, questions, newAnswers, newOthers);
+              targetIndex =
+                nextIdx < questions.length
+                  ? nextIdx
+                  : getPrevQuestionIndex(targetIndex, questions, newAnswers, newOthers);
+              if (targetIndex < 0) targetIndex = 0;
+            }
+            if (isQuestionSkipped(6, newAnswers, newOthers)) {
+              delete newAnswers["6"];
+              delete newOthers["6"];
+            }
+            const syncedOtherOpen = { ...(parsed.otherOpen ?? {}) };
+            if (isQuestionSkipped(6, newAnswers, newOthers)) {
+              delete syncedOtherOpen["6"];
+            }
+            setAnswers(newAnswers);
+            setOthers(newOthers);
+            setOtherOpen(syncedOtherOpen);
             setIndex(targetIndex);
           }
+
         }
       } catch {}
     };
 
     window.addEventListener("storage", onStorage);
     return () => window.removeEventListener("storage", onStorage);
-  }, [questions.length]);
+  }, [questions]);
+
 
   const question = questions[index];
   const key = question ? String(question.order) : "";
@@ -328,6 +380,20 @@ export function Survey({
     if (typeof value === "string") return value.trim().length > 0;
     return value !== undefined && value !== null;
   }, [question, value, others, otherOpen, key]);
+
+  const activeQuestions = useMemo(
+    () => getActiveQuestions(questions, answers, others),
+    [questions, answers, others],
+  );
+  const activeIndex = useMemo(
+    () => getActiveIndex(questions, index, answers, others),
+    [questions, index, answers, others],
+  );
+  const isLastQuestion = useMemo(
+    () => getNextQuestionIndex(index, questions, answers, others) >= questions.length,
+    [index, questions, answers, others],
+  );
+
 
   // Progress saves are chained so two patches of the same row can never land out of
   // order, and so the final submit runs after every pending save has settled.
@@ -390,7 +456,8 @@ export function Survey({
 
   const advance = useCallback(
     (override?: Answers) => {
-      const next = override ?? answers;
+      const next = override ? { ...override } : { ...answers };
+
       setBack(false);
       setResumedFrom(null);
 
@@ -400,23 +467,38 @@ export function Survey({
           nextOthers[k] = "Other";
         }
       }
+
+      if (isQuestionSkipped(6, next, nextOthers)) {
+        delete next["6"];
+        delete nextOthers["6"];
+        setAnswers(next);
+        setOtherOpen((prev) => {
+          if (!prev["6"]) return prev;
+          const copy = { ...prev };
+          delete copy["6"];
+          return copy;
+        });
+      }
       setOthers(nextOthers);
 
-      if (index + 1 < questions.length) {
+      const nextIndex = getNextQuestionIndex(index, questions, next, nextOthers);
+
+      if (nextIndex < questions.length) {
         persist(next, nextOthers);
-        setIndex(index + 1);
+        setIndex(nextIndex);
       } else {
         void finish(next, nextOthers);
       }
     },
-    [answers, index, questions.length, others, otherOpen, finish, persist],
+    [answers, index, questions, others, otherOpen, finish, persist],
   );
 
   const goBack = useCallback(() => {
-    if (index === 0) return;
+    const prevIndex = getPrevQuestionIndex(index, questions, answers, others);
+    if (prevIndex < 0) return;
     setBack(true);
-    setIndex(index - 1);
-  }, [index]);
+    setIndex(prevIndex);
+  }, [index, questions, answers, others]);
 
   const pickSingle = useCallback(
     (label: string) => {
@@ -562,6 +644,7 @@ export function Survey({
 
   if (!question) return null;
 
+
   return (
     <section className="mx-auto flex w-full max-w-xl flex-1 flex-col gap-8 px-6 py-10 sm:py-16">
       {resumedFrom !== null && (
@@ -573,7 +656,9 @@ export function Survey({
           <div className="flex items-center gap-2">
             <span className="h-2 w-2 shrink-0 rounded-full bg-accent animate-pulse" />
             <span>
-              Resumed where you left off (question {resumedFrom + 1} of {questions.length})
+              Resumed where you left off (question{" "}
+              {getActiveIndex(questions, resumedFrom, answers, others) + 1} of{" "}
+              {activeQuestions.length})
             </span>
           </div>
           <div className="flex items-center gap-3">
@@ -596,7 +681,8 @@ export function Survey({
         </aside>
       )}
 
-      <Progress current={index + (answered ? 1 : 0)} total={questions.length} />
+      <Progress current={activeIndex + (answered ? 1 : 0)} total={activeQuestions.length} />
+
 
       <div key={index} className={`flex flex-1 flex-col gap-6 ${back ? "enter-back" : "enter-forward"}`}>
         <header className="flex flex-col gap-2">
@@ -653,7 +739,7 @@ export function Survey({
                   <Option
                     shape="check"
                     selected={Boolean(otherOpen[key])}
-                    onClick={() =>
+                    onClick={() => {
                       setOtherOpen((p) => {
                         const opening = !p[key];
                         if (!opening) {
@@ -666,8 +752,19 @@ export function Survey({
                           setOthers((prev) => ({ ...prev, [key]: "Other" }));
                         }
                         return { ...p, [key]: opening };
-                      })
-                    }
+                      });
+                      if (!otherOpen[key]) {
+                        const current = Array.isArray(value) ? (value as string[]) : [];
+                        const withoutNone = current.filter(
+                          (x) =>
+                            !x.toLowerCase().includes("haven't modded") &&
+                            !x.toLowerCase().includes("not interested"),
+                        );
+                        if (withoutNone.length !== current.length) {
+                          setValue(key, withoutNone);
+                        }
+                      }
+                    }}
                   >
                     Other…
                   </Option>
@@ -771,7 +868,7 @@ export function Survey({
               />
               <Continue
                 label={
-                  index + 1 === questions.length ? (answered ? "Submit" : "Skip & submit") : "Continue"
+                  isLastQuestion ? (answered ? "Submit" : "Skip & submit") : "Continue"
                 }
                 onClick={() => advance()}
               />
@@ -785,11 +882,12 @@ export function Survey({
           <button
             type="button"
             onClick={goBack}
-            disabled={index === 0}
+            disabled={getPrevQuestionIndex(index, questions, answers, others) < 0}
             className="text-sm text-muted transition-colors hover:text-ink disabled:invisible"
           >
             ← Back
           </button>
+
           <button
             type="button"
             onClick={resetSurvey}

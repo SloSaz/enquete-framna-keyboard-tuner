@@ -84,7 +84,29 @@ function toQuestion(page: NotionPage): Question | null {
 export const QUESTIONS_TAG = "survey-questions";
 
 import { SEED_QUESTIONS } from "./seed-questions";
-export { SEED_QUESTIONS };
+import {
+  enrichQuestionChoices as enrichWithSeed,
+  getActiveIndex,
+  getActiveQuestions,
+  getNextQuestionIndex,
+  getPrevQuestionIndex,
+  isAbTestingSelected,
+  isQuestionSkipped,
+} from "./question-logic";
+
+export {
+  SEED_QUESTIONS,
+  getActiveIndex,
+  getActiveQuestions,
+  getNextQuestionIndex,
+  getPrevQuestionIndex,
+  isAbTestingSelected,
+  isQuestionSkipped,
+};
+
+export function enrichQuestionChoices(questions: Question[]): Question[] {
+  return enrichWithSeed(questions, SEED_QUESTIONS);
+}
 
 async function loadQuestions(): Promise<Question[]> {
   try {
@@ -102,7 +124,7 @@ async function loadQuestions(): Promise<Question[]> {
       .map(toQuestion)
       .filter((question): question is Question => question !== null && question.title !== "");
 
-    if (parsed.length > 0) return parsed;
+    if (parsed.length > 0) return enrichQuestionChoices(parsed);
   } catch (error) {
     console.warn("Could not load questions from Notion, falling back to seed questions:", error);
   }
@@ -115,3 +137,4 @@ export const getQuestions = unstable_cache(loadQuestions, [QUESTIONS_TAG], {
   revalidate: 300,
   tags: [QUESTIONS_TAG],
 });
+

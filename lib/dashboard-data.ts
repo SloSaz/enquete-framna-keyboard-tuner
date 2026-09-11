@@ -678,7 +678,13 @@ export function computeAnalytics(
     // % Wanting A/B Comparison (Q6)
     const abInterested = group.filter((r) => {
       const q6 = r.answers["6"];
-      return Array.isArray(q6) && q6.length > 0;
+      if (!Array.isArray(q6) || q6.length === 0) return false;
+      return q6.some(
+        (x) =>
+          typeof x === "string" &&
+          !x.toLowerCase().includes("not interested") &&
+          !x.toLowerCase().includes("none"),
+      );
     }).length;
     const abCompareWantedPercent = count > 0 ? round((abInterested / count) * 100, 1) : 0;
 

@@ -185,10 +185,33 @@ async function ensureAnswerColumns(db) {
   const missing = Object.fromEntries(
     Object.entries(wanted).filter(([name]) => !(name in db.properties)),
   );
-  if (!Object.keys(missing).length) return;
-  await notion(`databases/${db.id}`, "PATCH", { properties: missing });
-  console.log(`  added columns: ${Object.keys(missing).join(", ")}`);
+  if (Object.keys(missing).length) {
+    await notion(`databases/${db.id}`, "PATCH", { properties: missing });
+    console.log(`  added columns: ${Object.keys(missing).join(", ")}`);
+  }
+
+  const optionUpdates = {};
+  for (const item of seed.items) {
+    if (item.type === "single_choice" || item.type === "multi_choice") {
+      const colName = Object.keys(db.properties).find((p) => p.startsWith(`Q${item.order} `));
+      if (!colName) continue;
+      const prop = db.properties[colName];
+      const kind = prop.type;
+      if (kind !== "select" && kind !== "multi_select") continue;
+      const currentNames = new Set((prop[kind]?.options ?? []).map((o) => o.name));
+      const expectedNames = labelsOf(item);
+      const hasMissing = expectedNames.some((n) => !currentNames.has(n));
+      if (hasMissing) {
+        optionUpdates[colName] = { [kind]: { options: selectOptions(item) } };
+      }
+    }
+  }
+  if (Object.keys(optionUpdates).length) {
+    await notion(`databases/${db.id}`, "PATCH", { properties: optionUpdates });
+    console.log(`  updated answer choice options: ${Object.keys(optionUpdates).join(", ")}`);
+  }
 }
+
 
 const q = await ensureQuestionsDb();
 console.log(`${q.created ? "created" : "reusing"} "${QUESTIONS_TITLE}" ${q.db.id}`);

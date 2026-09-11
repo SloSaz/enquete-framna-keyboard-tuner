@@ -288,6 +288,62 @@ describe("Dashboard Analytics Engine", () => {
         assert.ok(row.max >= row.min && row.max <= 5);
       }
     });
+
+    test("abCompareWantedPercent correctly excludes respondents who selected 'Not interested in A/B testing'", () => {
+      const mockResponses = [
+        {
+          id: "r1",
+          responseId: "r1",
+          status: "Complete",
+          startedAt: "2026-09-11T12:00:00Z",
+          submittedAt: "2026-09-11T12:03:00Z",
+          durationSec: 180,
+          answeredCount: 10,
+          answers: {
+            "1": "Newcomer / Beginner",
+            "5": ["Before-and-after comparison of modifications"],
+            "6": ["Not interested in A/B testing"], // explicitly NOT interested
+          },
+          other: {},
+        },
+        {
+          id: "r2",
+          responseId: "r2",
+          status: "Complete",
+          startedAt: "2026-09-11T12:00:00Z",
+          submittedAt: "2026-09-11T12:03:00Z",
+          durationSec: 180,
+          answeredCount: 10,
+          answers: {
+            "1": "Newcomer / Beginner",
+            "5": ["Before-and-after comparison of modifications"],
+            "6": ["Switch types"], // interested in switch A/B comparison
+          },
+          other: {},
+        },
+        {
+          id: "r3",
+          responseId: "r3",
+          status: "Complete",
+          startedAt: "2026-09-11T12:00:00Z",
+          submittedAt: "2026-09-11T12:03:00Z",
+          durationSec: 180,
+          answeredCount: 9,
+          answers: {
+            "1": "Newcomer / Beginner",
+            "5": ["Objective classification of sound characteristics"], // Q6 skipped entirely
+          },
+          other: {},
+        },
+      ];
+
+      const analytics = computeAnalytics(SEED_QUESTIONS, mockResponses);
+      const beginnerGroup = analytics.crossTabs.find((c) => c.experience === "Newcomer / Beginner");
+      assert.ok(beginnerGroup);
+      assert.equal(beginnerGroup.count, 3);
+      // Only 1 out of 3 wanted A/B comparisons (r2)
+      assert.equal(beginnerGroup.abCompareWantedPercent, 33.3);
+    });
   });
 
   describe("Simulated dataset consistency", () => {
