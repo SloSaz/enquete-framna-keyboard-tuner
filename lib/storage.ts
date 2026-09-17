@@ -10,6 +10,7 @@ export interface SurveyDraft {
   otherOpen: Record<string, boolean>;
   startedAt: number;
   updatedAt: number;
+  source?: string;
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
@@ -57,6 +58,11 @@ export function loadDraft(): SurveyDraft | null {
         ? parsed.updatedAt
         : Date.now();
 
+    const source =
+      typeof parsed.source === "string" && parsed.source.trim()
+        ? parsed.source.trim().replace(/,/g, "-").slice(0, 100)
+        : undefined;
+
     return {
       version: 1,
       index,
@@ -65,6 +71,7 @@ export function loadDraft(): SurveyDraft | null {
       otherOpen,
       startedAt,
       updatedAt,
+      ...(source ? { source } : {}),
     };
   } catch (error) {
     console.warn("Failed to read survey draft from localStorage", error);
@@ -78,10 +85,16 @@ export function saveDraft(data: {
   others: Record<string, string>;
   otherOpen?: Record<string, boolean>;
   startedAt: number;
+  source?: string;
 }): void {
   if (typeof window === "undefined" || !window.localStorage) return;
 
   try {
+    const source =
+      typeof data.source === "string" && data.source.trim()
+        ? data.source.trim().replace(/,/g, "-").slice(0, 100)
+        : undefined;
+
     const draft: SurveyDraft = {
       version: 1,
       index:
@@ -96,6 +109,7 @@ export function saveDraft(data: {
           ? data.startedAt
           : 0,
       updatedAt: Date.now(),
+      ...(source ? { source } : {}),
     };
 
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(draft));

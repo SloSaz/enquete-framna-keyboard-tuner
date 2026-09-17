@@ -49,6 +49,7 @@ export function DashboardClient({
   // Filters
   const [statusFilter, setStatusFilter] = useState<"ALL" | "Complete" | "In progress">("ALL");
   const [experienceFilter, setExperienceFilter] = useState<string>("ALL");
+  const [sourceFilter, setSourceFilter] = useState<string>("ALL");
   const [searchQuery, setSearchQuery] = useState("");
   const [startDate, setStartDate] = useState<string>("");
   const [endDate, setEndDate] = useState<string>("");
@@ -90,10 +91,23 @@ export function DashboardClient({
     return [...liveResponses, ...demoResponses];
   }, [sourceMode, liveResponses, demoResponses]);
 
+  // Unique sources available in the current dataset
+  const availableSources = useMemo(() => {
+    const s = new Set<string>();
+    for (const r of rawPool) {
+      s.add(r.source?.trim() || "Direct / None");
+    }
+    return Array.from(s).sort();
+  }, [rawPool]);
+
   // Apply filters
   const filteredResponses = useMemo(() => {
     return rawPool.filter((r) => {
       if (statusFilter !== "ALL" && r.status !== statusFilter) return false;
+      if (sourceFilter !== "ALL") {
+        const src = r.source?.trim() || "Direct / None";
+        if (src !== sourceFilter) return false;
+      }
       if (experienceFilter !== "ALL") {
         const exp = r.answers["1"];
         if (exp !== experienceFilter) return false;
@@ -109,16 +123,17 @@ export function DashboardClient({
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
         const idMatch = r.responseId.toLowerCase().includes(q);
+        const sourceMatch = Boolean(r.source && r.source.toLowerCase().includes(q));
         const q9Match = typeof r.answers["9"] === "string" && r.answers["9"].toLowerCase().includes(q);
         const q10Match = typeof r.answers["10"] === "string" && r.answers["10"].toLowerCase().includes(q);
         const otherMatch = Object.values(r.other || {}).some(
           (v) => typeof v === "string" && v.toLowerCase().includes(q),
         );
-        if (!idMatch && !q9Match && !q10Match && !otherMatch) return false;
+        if (!idMatch && !sourceMatch && !q9Match && !q10Match && !otherMatch) return false;
       }
       return true;
     });
-  }, [rawPool, statusFilter, experienceFilter, searchQuery, startDate, endDate]);
+  }, [rawPool, statusFilter, sourceFilter, experienceFilter, searchQuery, startDate, endDate]);
 
   // Compute analytics based on filtered responses
   const analytics: DashboardAnalytics = useMemo(() => {
@@ -434,6 +449,24 @@ export function DashboardClient({
             <option value="Expert / Custom Builder">Expert / Custom Builder</option>
           </select>
 
+          {/* Subreddit / Source Filter */}
+          <select
+            value={sourceFilter}
+            onChange={(e) => {
+              setSourceFilter(e.target.value);
+              setTablePage(1);
+            }}
+            aria-label="Filter by subreddit or source"
+            className="px-2.5 py-1 rounded-md bg-[#07080f] border border-line text-ink focus:outline-none focus:border-accent"
+          >
+            <option value="ALL">All Sources / Subreddits</option>
+            {availableSources.map((src) => (
+              <option key={src} value={src}>
+                {src}
+              </option>
+            ))}
+          </select>
+
           {/* Date Range Presets & Pickers */}
           <div className="flex items-center gap-1.5 flex-wrap">
             <div className="flex rounded-md bg-[#07080f] border border-line p-0.5">
@@ -489,7 +522,7 @@ export function DashboardClient({
           <div className="relative">
             <input
               type="text"
-              placeholder="Search ID, open text, handles..."
+              placeholder="Search ID, source, open text..."
               value={searchQuery}
               onChange={(e) => {
                 setSearchQuery(e.target.value);
@@ -509,6 +542,7 @@ export function DashboardClient({
 
           {(statusFilter !== "ALL" ||
             experienceFilter !== "ALL" ||
+            sourceFilter !== "ALL" ||
             searchQuery ||
             startDate ||
             endDate) && (
@@ -516,6 +550,7 @@ export function DashboardClient({
               onClick={() => {
                 setStatusFilter("ALL");
                 setExperienceFilter("ALL");
+                setSourceFilter("ALL");
                 setSearchQuery("");
                 setStartDate("");
                 setEndDate("");
@@ -820,6 +855,79 @@ export function DashboardClient({
                   );
                 })()}
               </div>
+            </div>
+
+            {/* Subreddit & Campaign Traffic Attribution Card */}
+            <div className="p-6 rounded-xl bg-card border border-line space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-1.5 rounded-lg bg-accent/10 border border-accent/20 text-accent">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-semibold tracking-tight text-ink">
+                      Subreddit & Campaign Traffic Attribution (?source=...)
+                    </h3>
+                    <p className="text-xs text-muted">
+                      Track which subreddits yield the most respondents and highest completion rates
+                    </p>
+                  </div>
+                </div>
+                <div className="text-xs font-mono text-muted">
+                  {analytics.sourceStats.length} {analytics.sourceStats.length === 1 ? "source" : "sources"} tracked
+                </div>
+              </div>
+
+              {analytics.sourceStats.length === 0 ? (
+                <p className="text-xs text-muted">No traffic data recorded yet.</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs text-left">
+                    <thead className="bg-[#07080f] text-muted font-mono uppercase tracking-wider border-b border-line">
+                      <tr>
+                        <th className="p-2.5">Subreddit / Source</th>
+                        <th className="p-2.5 text-right">Responses</th>
+                        <th className="p-2.5 text-right">Share</th>
+                        <th className="p-2.5 text-right">Completed</th>
+                        <th className="p-2.5 text-right">Completion Rate</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-line/40 font-mono">
+                      {analytics.sourceStats.map((s) => (
+                        <tr
+                          key={s.source}
+                          onClick={() => {
+                            setSourceFilter(s.source);
+                            setTablePage(1);
+                          }}
+                          className="hover:bg-white/[0.03] transition-colors cursor-pointer"
+                          title={`Click to filter by ${s.source}`}
+                        >
+                          <td className="p-2.5 font-medium text-ink flex items-center gap-2 font-sans">
+                            <span className="w-2 h-2 rounded-full bg-accent shrink-0" />
+                            <span className="font-semibold text-accent hover:underline">{s.source}</span>
+                            {sourceFilter === s.source && (
+                              <span className="text-[10px] px-1.5 py-0.2 rounded bg-accent/20 text-accent font-mono">
+                                Filtered
+                              </span>
+                            )}
+                          </td>
+                          <td className="p-2.5 text-right text-ink font-semibold">{s.count}</td>
+                          <td className="p-2.5 text-right text-muted">{s.percentOfTotal}%</td>
+                          <td className="p-2.5 text-right text-emerald-400">{s.completedCount}</td>
+                          <td className="p-2.5 text-right">
+                            <span className={s.completionRate >= 70 ? "text-emerald-400 font-semibold" : "text-amber-400"}>
+                              {s.completionRate}%
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
 
             {/* Question Response Rankings: Most Answered vs Least Answered Questions */}
@@ -1709,6 +1817,7 @@ export function DashboardClient({
                     >
                       Status {sortColumn === "status" && (sortDirection === "asc" ? "▲" : "▼")}
                     </th>
+                    <th className="p-3">Source</th>
                     <th
                       className="p-3 cursor-pointer hover:text-ink select-none"
                       onClick={() => handleSort("startedAt")}
@@ -1755,6 +1864,15 @@ export function DashboardClient({
                         >
                           {r.status}
                         </span>
+                      </td>
+                      <td className="p-3 font-mono text-xs">
+                        {r.source ? (
+                          <span className="px-2 py-0.5 rounded bg-accent/10 text-accent border border-accent/20 text-[10px]">
+                            {r.source}
+                          </span>
+                        ) : (
+                          <span className="text-[10px] text-muted/60">Direct</span>
+                        )}
                       </td>
                       <td className="p-3 text-muted font-mono">
                         {r.startedAt ? new Date(r.startedAt).toLocaleString() : "—"}
@@ -1996,7 +2114,7 @@ print(stats)`}
               </div>
 
               {/* Metadata summary */}
-              <div className="grid grid-cols-2 gap-2 text-xs font-mono p-3 rounded-lg bg-[#07080f] border border-line">
+              <div className="grid grid-cols-3 gap-2 text-xs font-mono p-3 rounded-lg bg-[#07080f] border border-line">
                 <div>
                   <span className="text-muted block">Duration:</span>
                   <span className="text-ink font-semibold">{formatDuration(inspectedResponse.durationSec)}</span>
@@ -2005,6 +2123,12 @@ print(stats)`}
                   <span className="text-muted block">Answered:</span>
                   <span className="text-ink font-semibold">
                     {inspectedResponse.answeredCount} / {questions.length} questions
+                  </span>
+                </div>
+                <div>
+                  <span className="text-muted block">Source:</span>
+                  <span className="text-accent font-semibold truncate block">
+                    {inspectedResponse.source || "Direct / None"}
                   </span>
                 </div>
               </div>

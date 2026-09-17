@@ -169,10 +169,12 @@ export function Survey({
   questions,
   title,
   intro,
+  initialSource,
 }: {
   questions: Question[];
   title: string;
   intro: string;
+  initialSource?: string;
 }) {
   const [phase, setPhase] = useState<Phase>("intro");
   const [index, setIndex] = useState(0);
@@ -181,6 +183,7 @@ export function Survey({
   const [others, setOthers] = useState<Others>({});
   const [otherOpen, setOtherOpen] = useState<Record<string, boolean>>({});
   const [startedAt, setStartedAt] = useState(0);
+  const [source, setSource] = useState<string | undefined>(() => initialSource?.trim() || undefined);
   const [error, setError] = useState<string | null>(null);
   const [hp, setHp] = useState("");
   const [resumedFrom, setResumedFrom] = useState<number | null>(null);
@@ -192,6 +195,16 @@ export function Survey({
 
     queueMicrotask(() => {
       if (cancelled) return;
+
+      let detectedSource: string | undefined = undefined;
+      if (typeof window !== "undefined") {
+        const params = new URLSearchParams(window.location.search);
+        const raw = (params.get("source") || params.get("ref") || "").trim();
+        if (raw) {
+          detectedSource = raw.replace(/,/g, "-").slice(0, 100);
+        }
+      }
+
       const draft = loadDraft();
       if (draft) {
         let targetIndex = Math.min(draft.index, Math.max(0, questions.length - 1));
@@ -226,6 +239,10 @@ export function Survey({
           }
         }
 
+        if (draft.source && !detectedSource) {
+          detectedSource = draft.source;
+        }
+
         setAnswers(draft.answers);
         setOthers(draft.others);
         setOtherOpen(otherOpenMap);
@@ -240,6 +257,11 @@ export function Survey({
         }
 
       }
+
+      if (detectedSource) {
+        setSource(detectedSource);
+      }
+
       setRestored(true);
     });
 
@@ -265,13 +287,14 @@ export function Survey({
         others,
         otherOpen,
         startedAt,
+        source,
       });
     }
-  }, [restored, phase, index, answers, others, otherOpen, startedAt]);
+  }, [restored, phase, index, answers, others, otherOpen, startedAt, source]);
 
-  const stateRef = useRef({ phase, index, answers, others, otherOpen, startedAt, restored });
+  const stateRef = useRef({ phase, index, answers, others, otherOpen, startedAt, restored, source });
   useEffect(() => {
-    stateRef.current = { phase, index, answers, others, otherOpen, startedAt, restored };
+    stateRef.current = { phase, index, answers, others, otherOpen, startedAt, restored, source };
   });
 
   // Flush on tab hide/unload in case of immediate navigation
@@ -285,6 +308,7 @@ export function Survey({
           others: cur.others,
           otherOpen: cur.otherOpen,
           startedAt: cur.startedAt,
+          source: cur.source,
         });
       }
     };
@@ -402,10 +426,10 @@ export function Survey({
   const persist = useCallback(
     (snapshot: Answers, snapshotOthers: Others) => {
       saveQueue.current = saveQueue.current
-        .then(() => saveProgressAction({ answers: snapshot, other: snapshotOthers, hp }))
+        .then(() => saveProgressAction({ answers: snapshot, other: snapshotOthers, hp, source }))
         .catch((error) => console.error("progress save failed", error));
     },
-    [hp],
+    [hp, source],
   );
 
   const resetSurvey = useCallback(() => {
@@ -442,6 +466,7 @@ export function Survey({
         other: finalOthers,
         durationSec: startedAt > 0 ? (Date.now() - startedAt) / 1000 : undefined,
         hp,
+        source,
       });
       if (result.ok) {
         clearDraft();
@@ -451,7 +476,7 @@ export function Survey({
         setPhase("failed");
       }
     },
-    [startedAt, hp],
+    [startedAt, hp, source],
   );
 
   const advance = useCallback(
@@ -600,6 +625,7 @@ export function Survey({
                 others: {},
                 otherOpen: {},
                 startedAt: now,
+                source,
               });
             }}
           />

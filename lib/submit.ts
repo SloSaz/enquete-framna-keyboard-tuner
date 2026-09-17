@@ -27,6 +27,7 @@ async function upsert(
     answers: payload.answers ?? {},
     other: payload.other ?? {},
     durationSec: payload.durationSec,
+    source: payload.source,
   };
 
   try {

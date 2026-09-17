@@ -8,6 +8,7 @@ export type SurveyResponseRecord = {
   submittedAt: string | null;
   durationSec: number | null;
   answeredCount: number;
+  source?: string | null;
   answers: {
     "1"?: string | null;
     "2"?: string[] | null;
@@ -154,6 +155,14 @@ export type CrossTabRow = {
   abCompareWantedPercent: number;
 };
 
+export type SourceStat = {
+  source: string;
+  count: number;
+  completedCount: number;
+  completionRate: number; // 0-100%
+  percentOfTotal: number; // 0-100%
+};
+
 export type DashboardAnalytics = {
   metrics: SummaryMetrics;
   funnel: FunnelStep[];
@@ -163,6 +172,7 @@ export type DashboardAnalytics = {
     dropOffRate: number;
     count: number;
   } | null;
+  sourceStats: SourceStat[];
   questionStats: Record<number, QuestionStat>;
   mostAnsweredQuestions: QuestionRankingItem[];
   leastAnsweredQuestions: QuestionRankingItem[];
@@ -794,10 +804,42 @@ export function computeAnalytics(
     }
   }
 
+  // Source / Subreddit traffic breakdown
+  const sourceMap = new Map<string, { total: number; completed: number }>();
+  for (const r of responses) {
+    const src = r.source?.trim() || "Direct / None";
+    const cur = sourceMap.get(src) ?? { total: 0, completed: 0 };
+    cur.total++;
+    if (r.status === "Complete") {
+      cur.completed++;
+    }
+    sourceMap.set(src, cur);
+  }
+
+  const sourceStats: SourceStat[] = Array.from(sourceMap.entries())
+    .map(([source, data]) => ({
+      source,
+      count: data.total,
+      completedCount: data.completed,
+      completionRate: data.total > 0 ? round((data.completed / data.total) * 100, 1) : 0,
+      percentOfTotal: total > 0 ? round((data.total / total) * 100, 1) : 0,
+    }))
+    .sort((a, b) => b.count - a.count);
+
+  if (total > 0 && sourceStats.length > 0) {
+    const topSource = sourceStats[0];
+    if (topSource.source !== "Direct / None") {
+      keyInsights.push(
+        `Top respondent traffic source is "${topSource.source}" with ${topSource.count} submissions (${topSource.percentOfTotal}% of total, ${topSource.completionRate}% completion rate).`,
+      );
+    }
+  }
+
   return {
     metrics,
     funnel,
     topDropOffQuestion,
+    sourceStats,
     questionStats,
     mostAnsweredQuestions,
     leastAnsweredQuestions,
@@ -828,6 +870,7 @@ export function exportResponsesToCSV(
 ): string {
   const headers = [
     "Response ID",
+    "Source",
     "Status",
     "Started At",
     "Submitted At",
@@ -863,6 +906,7 @@ export function exportResponsesToCSV(
 
     const row = [
       r.responseId,
+      r.source ?? "",
       r.status,
       r.startedAt ?? "",
       r.submittedAt ?? "",
@@ -1570,6 +1614,19 @@ export function generateDemoResponses(): SurveyResponseRecord[] {
       }
     }
 
+    const demoSources = [
+      "r/MechanicalKeyboards",
+      "r/BudgetKeebs",
+      "r/MechanicalKeyboards",
+      "r/olkb",
+      "r/MechanicalKeyboards",
+      null,
+      "r/CustomKeyboards",
+      "r/MechanicalKeyboards",
+      "r/BudgetKeebs",
+      null,
+    ];
+
     return {
       id: `page_demo_${idx + 1}`,
       responseId: `r_demo_${String(idx + 1).padStart(2, "0")}`,
@@ -1578,6 +1635,7 @@ export function generateDemoResponses(): SurveyResponseRecord[] {
       submittedAt: submitted ? submitted.toISOString() : null,
       durationSec: d.durationSec,
       answeredCount: answered,
+      source: demoSources[idx % demoSources.length] ?? null,
       answers: d.answers,
       other: d.other || {},
     };
@@ -1617,6 +1675,9 @@ function extractResponseFromPage(
   const statusRaw = getSelect("Status");
   const status: "Complete" | "In progress" | "Unknown" =
     statusRaw === "Complete" || statusRaw === "In progress" ? statusRaw : "Unknown";
+
+  const sourceRaw = getSelect("Source") || getText("Source");
+  const source = sourceRaw ? sourceRaw.trim() : null;
 
   const startedAt = getDate("Started at");
   const submittedAt = getDate("Submitted at");
@@ -1690,6 +1751,7 @@ function extractResponseFromPage(
     submittedAt,
     durationSec,
     answeredCount,
+    source,
     answers,
     other,
   };

@@ -6,7 +6,16 @@ export type Submission = {
   answers: Record<string, AnswerValue>;
   other: Record<string, string>;
   durationSec?: number;
+  source?: string;
 };
+
+export function sanitizeSource(raw: unknown): string | undefined {
+  if (typeof raw !== "string") return undefined;
+  const trimmed = raw.trim();
+  if (!trimmed) return undefined;
+  // Notion select values cannot contain commas; replace commas with hyphens and limit length
+  return trimmed.replace(/,/g, "-").slice(0, 100);
+}
 
 export class ValidationError extends Error {
   readonly issues: string[];

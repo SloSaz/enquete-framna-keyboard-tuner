@@ -9,6 +9,7 @@ import {
   getPrevQuestionIndex,
   isAbTestingSelected,
   isQuestionSkipped,
+  sanitizeSource,
   validate,
 } from "../lib/question-logic.ts";
 import { SEED_QUESTIONS } from "../lib/seed-questions.ts";
@@ -583,6 +584,28 @@ describe("survey logic & validation", () => {
       const issues = validate(questions, completeSubmission, { requireAll: true });
       assert.deepEqual(issues, []);
       assert.equal(countAnswered(questions, completeSubmission), 10);
+    });
+  });
+
+  describe("sanitizeSource", () => {
+    test("returns undefined for non-string, empty, or whitespace-only inputs", () => {
+      assert.equal(sanitizeSource(null), undefined);
+      assert.equal(sanitizeSource(undefined), undefined);
+      assert.equal(sanitizeSource(123), undefined);
+      assert.equal(sanitizeSource(""), undefined);
+      assert.equal(sanitizeSource("   "), undefined);
+    });
+
+    test("trims whitespace and preserves valid subreddit names", () => {
+      assert.equal(sanitizeSource("  r/MechanicalKeyboards  "), "r/MechanicalKeyboards");
+      assert.equal(sanitizeSource("olkb"), "olkb");
+      assert.equal(sanitizeSource("CustomKeyboards"), "CustomKeyboards");
+    });
+
+    test("replaces commas with hyphens for Notion select safety and caps length at 100", () => {
+      assert.equal(sanitizeSource("foo,bar,baz"), "foo-bar-baz");
+      const longStr = "a".repeat(150);
+      assert.equal(sanitizeSource(longStr)?.length, 100);
     });
   });
 });

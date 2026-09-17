@@ -91,6 +91,7 @@ describe("Dashboard Analytics Engine", () => {
       // Check header
       const header = lines[0];
       assert.ok(header.includes("Response ID"));
+      assert.ok(header.includes("Source"));
       assert.ok(header.includes("Status"));
       assert.ok(header.includes("Duration (seconds)"));
       assert.ok(header.includes("Q1 Experience Level"));
@@ -343,6 +344,84 @@ describe("Dashboard Analytics Engine", () => {
       assert.equal(beginnerGroup.count, 3);
       // Only 1 out of 3 wanted A/B comparisons (r2)
       assert.equal(beginnerGroup.abCompareWantedPercent, 33.3);
+    });
+
+    test("computes sourceStats traffic breakdown and handles missing/empty source as Direct", () => {
+      const mockTrafficResponses = [
+        {
+          id: "1",
+          responseId: "r1",
+          status: "Complete",
+          startedAt: "2026-09-11T10:00:00Z",
+          submittedAt: "2026-09-11T10:03:00Z",
+          durationSec: 180,
+          answeredCount: 10,
+          source: "r/MechanicalKeyboards",
+          answers: { "1": "Enthusiast" },
+          other: {},
+        },
+        {
+          id: "2",
+          responseId: "r2",
+          status: "Complete",
+          startedAt: "2026-09-11T10:05:00Z",
+          submittedAt: "2026-09-11T10:08:00Z",
+          durationSec: 180,
+          answeredCount: 10,
+          source: "r/MechanicalKeyboards",
+          answers: { "1": "Enthusiast" },
+          other: {},
+        },
+        {
+          id: "3",
+          responseId: "r3",
+          status: "In progress",
+          startedAt: "2026-09-11T10:10:00Z",
+          submittedAt: null,
+          durationSec: null,
+          answeredCount: 3,
+          source: "r/olkb",
+          answers: { "1": "Newcomer / Beginner" },
+          other: {},
+        },
+        {
+          id: "4",
+          responseId: "r4",
+          status: "Complete",
+          startedAt: "2026-09-11T10:15:00Z",
+          submittedAt: "2026-09-11T10:18:00Z",
+          durationSec: 180,
+          answeredCount: 10,
+          source: null, // Direct visitor with no source
+          answers: { "1": "Expert / Custom Builder" },
+          other: {},
+        },
+      ];
+
+      const analytics = computeAnalytics(SEED_QUESTIONS, mockTrafficResponses);
+      assert.ok(analytics.sourceStats);
+      assert.equal(analytics.sourceStats.length, 3);
+
+      const mk = analytics.sourceStats.find((s) => s.source === "r/MechanicalKeyboards");
+      assert.ok(mk);
+      assert.equal(mk.count, 2);
+      assert.equal(mk.completedCount, 2);
+      assert.equal(mk.completionRate, 100);
+      assert.equal(mk.percentOfTotal, 50);
+
+      const olkb = analytics.sourceStats.find((s) => s.source === "r/olkb");
+      assert.ok(olkb);
+      assert.equal(olkb.count, 1);
+      assert.equal(olkb.completedCount, 0);
+      assert.equal(olkb.completionRate, 0);
+      assert.equal(olkb.percentOfTotal, 25);
+
+      const direct = analytics.sourceStats.find((s) => s.source === "Direct / None");
+      assert.ok(direct);
+      assert.equal(direct.count, 1);
+      assert.equal(direct.completedCount, 1);
+      assert.equal(direct.completionRate, 100);
+      assert.equal(direct.percentOfTotal, 25);
     });
   });
 

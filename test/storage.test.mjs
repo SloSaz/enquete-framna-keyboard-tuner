@@ -303,5 +303,31 @@ describe("lib/storage", () => {
         clearDraft();
       });
     });
+
+    test("preserves source parameter across saves and sanitizes commas", () => {
+      saveDraft({
+        index: 0,
+        answers: {},
+        others: {},
+        startedAt: 1000,
+        source: "r/MechanicalKeyboards,Custom",
+      });
+
+      const draft = loadDraft();
+      assert.ok(draft !== null);
+      assert.equal(draft.source, "r/MechanicalKeyboards-Custom");
+
+      // Cleans empty/whitespace-only source to undefined
+      saveDraft({
+        index: 0,
+        answers: {},
+        others: {},
+        startedAt: 1000,
+        source: "   ",
+      });
+      const draftEmpty = loadDraft();
+      assert.ok(draftEmpty !== null);
+      assert.equal(draftEmpty.source, undefined);
+    });
   });
 });

@@ -1,10 +1,11 @@
-import { databaseIds, notion } from "./notion";
+import { databaseIds, notion, NotionError } from "./notion";
 import {
   type AnswerValue,
   countAnswered,
   isBlank,
   isQuestionSkipped,
   MAPPING,
+  sanitizeSource,
   type Submission,
   validate,
   ValidationError,
@@ -16,6 +17,7 @@ export {
   countAnswered,
   isQuestionSkipped,
   MAPPING,
+  sanitizeSource,
   type Submission,
   validate,
   ValidationError,
@@ -100,20 +102,44 @@ export async function createResponse(
   const responseId = `r_${crypto.randomUUID().slice(0, 8)}`;
   const { answers } = databaseIds();
 
-  const page = await notion<{ id: string }>("pages", {
-    method: "POST",
-    body: {
-      parent: { database_id: answers },
-      properties: {
-        "Response ID": { title: [{ text: { content: responseId } }] },
-        "Started at": { date: { start: new Date().toISOString() } },
-        Status: { select: { name: STATUS_IN_PROGRESS } },
-        Answered: { number: countAnswered(questions, submission) },
-        Questions: { relation: questions.map((question) => ({ id: question.id })) },
-        ...answerProperties(questions, submission),
+  const properties: Record<string, unknown> = {
+    "Response ID": { title: [{ text: { content: responseId } }] },
+    "Started at": { date: { start: new Date().toISOString() } },
+    Status: { select: { name: STATUS_IN_PROGRESS } },
+    Answered: { number: countAnswered(questions, submission) },
+    Questions: { relation: questions.map((question) => ({ id: question.id })) },
+    ...answerProperties(questions, submission),
+  };
+
+  const safeSource = sanitizeSource(submission.source);
+  if (safeSource) {
+    properties["Source"] = { select: { name: safeSource } };
+  }
+
+  let page: { id: string };
+  try {
+    page = await notion<{ id: string }>("pages", {
+      method: "POST",
+      body: {
+        parent: { database_id: answers },
+        properties,
       },
-    },
-  });
+    });
+  } catch (error) {
+    if (safeSource && error instanceof NotionError && error.message?.toLowerCase().includes("source")) {
+      console.warn("Notion database is missing 'Source' property. Retrying without it.", error.message);
+      delete properties["Source"];
+      page = await notion<{ id: string }>("pages", {
+        method: "POST",
+        body: {
+          parent: { database_id: answers },
+          properties,
+        },
+      });
+    } else {
+      throw error;
+    }
+  }
 
   return { responseId, pageId: page.id };
 }
@@ -131,6 +157,11 @@ export async function updateResponse(
     ...answerProperties(questions, submission),
   };
 
+  const safeSource = sanitizeSource(submission.source);
+  if (safeSource) {
+    properties["Source"] = { select: { name: safeSource } };
+  }
+
   if (complete) {
     properties["Status"] = { select: { name: STATUS_COMPLETE } };
     properties["Submitted at"] = { date: { start: new Date().toISOString() } };
@@ -139,5 +170,15 @@ export async function updateResponse(
     }
   }
 
-  await notion(`pages/${pageId}`, { method: "PATCH", body: { properties } });
+  try {
+    await notion(`pages/${pageId}`, { method: "PATCH", body: { properties } });
+  } catch (error) {
+    if (safeSource && error instanceof NotionError && error.message?.toLowerCase().includes("source")) {
+      console.warn("Notion database is missing 'Source' property. Retrying without it.", error.message);
+      delete properties["Source"];
+      await notion(`pages/${pageId}`, { method: "PATCH", body: { properties } });
+    } else {
+      throw error;
+    }
+  }
 }
