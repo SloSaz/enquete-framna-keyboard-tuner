@@ -58,11 +58,14 @@ describe("lib/storage", () => {
 
   describe("Browser environment (mocked window.localStorage)", () => {
     let mockStorage;
+    let mockSession;
 
     beforeEach(() => {
       mockStorage = createMockLocalStorage();
+      mockSession = createMockLocalStorage();
       globalThis.window = {
         localStorage: mockStorage,
+        sessionStorage: mockSession,
       };
     });
 
@@ -99,7 +102,7 @@ describe("lib/storage", () => {
       assert.ok(loaded.updatedAt >= now);
     });
 
-    test("clearDraft removes the item from localStorage", () => {
+    test("clearDraft removes the item from localStorage and active session from sessionStorage", () => {
       saveDraft({
         index: 2,
         answers: { "1": "Enthusiast" },
@@ -107,12 +110,15 @@ describe("lib/storage", () => {
         otherOpen: {},
         startedAt: Date.now(),
       });
+      mockSession.setItem("framna_survey_active", "1");
 
       assert.ok(mockStorage.getItem(STORAGE_KEY) !== null);
+      assert.equal(mockSession.getItem("framna_survey_active"), "1");
 
       clearDraft();
 
       assert.equal(mockStorage.getItem(STORAGE_KEY), null);
+      assert.equal(mockSession.getItem("framna_survey_active"), null);
       assert.equal(loadDraft(), null);
     });
 

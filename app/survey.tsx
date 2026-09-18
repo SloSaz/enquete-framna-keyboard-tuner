@@ -6,8 +6,6 @@ import { resetSessionAction, saveProgressAction, submitResponse } from "./action
 import { clearDraft, loadDraft, saveDraft, STORAGE_KEY } from "@/lib/storage";
 import type { AnswerValue } from "@/lib/answers";
 import {
-  getActiveIndex,
-  getActiveQuestions,
   getNextQuestionIndex,
   getPrevQuestionIndex,
   isQuestionSkipped,
@@ -187,6 +185,7 @@ export function Survey({
   const [error, setError] = useState<string | null>(null);
   const [hp, setHp] = useState("");
   const [resumedFrom, setResumedFrom] = useState<number | null>(null);
+  const [existingDraft, setExistingDraft] = useState<{ index: number; count: number } | null>(null);
   const [restored, setRestored] = useState(false);
 
   // Restore draft from localStorage on mount
@@ -207,55 +206,69 @@ export function Survey({
 
       const draft = loadDraft();
       if (draft) {
-        let targetIndex = Math.min(draft.index, Math.max(0, questions.length - 1));
-        if (
-          targetIndex < questions.length &&
-          isQuestionSkipped(questions[targetIndex].order, draft.answers, draft.others)
-        ) {
-          const nextIdx = getNextQuestionIndex(targetIndex, questions, draft.answers, draft.others);
-          targetIndex =
-            nextIdx < questions.length
-              ? nextIdx
-              : getPrevQuestionIndex(targetIndex, questions, draft.answers, draft.others);
-          if (targetIndex < 0) targetIndex = 0;
-        }
+        // Discard drafts older than 24 hours
+        const isStale = draft.updatedAt && Date.now() - draft.updatedAt > 24 * 60 * 60 * 1000;
+        if (isStale) {
+          clearDraft();
+        } else {
+          let targetIndex = Math.min(draft.index, Math.max(0, questions.length - 1));
+          if (
+            targetIndex < questions.length &&
+            isQuestionSkipped(questions[targetIndex].order, draft.answers, draft.others)
+          ) {
+            const nextIdx = getNextQuestionIndex(targetIndex, questions, draft.answers, draft.others);
+            targetIndex =
+              nextIdx < questions.length
+                ? nextIdx
+                : getPrevQuestionIndex(targetIndex, questions, draft.answers, draft.others);
+            if (targetIndex < 0) targetIndex = 0;
+          }
 
-        if (isQuestionSkipped(6, draft.answers, draft.others)) {
-          delete draft.answers["6"];
-          delete draft.others["6"];
-        }
+          if (isQuestionSkipped(6, draft.answers, draft.others)) {
+            delete draft.answers["6"];
+            delete draft.others["6"];
+          }
 
-        const hasAnswers =
-          Object.keys(draft.answers).length > 0 ||
-          Object.values(draft.others).some((v) => Boolean(v?.trim()));
+          const hasAnswers =
+            Object.keys(draft.answers).length > 0 ||
+            Object.values(draft.others).some((v) => Boolean(v?.trim()));
 
-        const otherOpenMap = { ...draft.otherOpen };
-        if (isQuestionSkipped(6, draft.answers, draft.others)) {
-          delete otherOpenMap["6"];
-        }
-        for (const [k, v] of Object.entries(draft.others)) {
-          if (v && v.trim() && otherOpenMap[k] === undefined) {
-            otherOpenMap[k] = true;
+          const otherOpenMap = { ...draft.otherOpen };
+          if (isQuestionSkipped(6, draft.answers, draft.others)) {
+            delete otherOpenMap["6"];
+          }
+          for (const [k, v] of Object.entries(draft.others)) {
+            if (v && v.trim() && otherOpenMap[k] === undefined) {
+              otherOpenMap[k] = true;
+            }
+          }
+
+          if (draft.source && !detectedSource) {
+            detectedSource = draft.source;
+          }
+
+          setAnswers(draft.answers);
+          setOthers(draft.others);
+          setOtherOpen(otherOpenMap);
+          setStartedAt(draft.startedAt);
+          setIndex(targetIndex);
+
+          // Check if this browser tab was already actively taking the survey before a page refresh
+          const isActiveSession =
+            typeof window !== "undefined" &&
+            window.sessionStorage?.getItem("framna_survey_active") === "1";
+
+          if (isActiveSession) {
+            setPhase("asking");
+            setResumedFrom(null);
+          } else if (hasAnswers) {
+            // Unfinished answers from a previous visit: stay on intro page and let user decide
+            setExistingDraft({
+              index: targetIndex,
+              count: Object.keys(draft.answers).length,
+            });
           }
         }
-
-        if (draft.source && !detectedSource) {
-          detectedSource = draft.source;
-        }
-
-        setAnswers(draft.answers);
-        setOthers(draft.others);
-        setOtherOpen(otherOpenMap);
-        setStartedAt(draft.startedAt);
-        setIndex(targetIndex);
-
-        if (draft.startedAt > 0 || hasAnswers || targetIndex > 0) {
-          setPhase("asking");
-          if (hasAnswers || targetIndex > 0) {
-            setResumedFrom(targetIndex);
-          }
-        }
-
       }
 
       if (detectedSource) {
@@ -405,19 +418,10 @@ export function Survey({
     return value !== undefined && value !== null;
   }, [question, value, others, otherOpen, key]);
 
-  const activeQuestions = useMemo(
-    () => getActiveQuestions(questions, answers, others),
-    [questions, answers, others],
-  );
-  const activeIndex = useMemo(
-    () => getActiveIndex(questions, index, answers, others),
-    [questions, index, answers, others],
-  );
   const isLastQuestion = useMemo(
     () => getNextQuestionIndex(index, questions, answers, others) >= questions.length,
     [index, questions, answers, others],
   );
-
 
   // Progress saves are chained so two patches of the same row can never land out of
   // order, and so the final submit runs after every pending save has settled.
@@ -448,6 +452,7 @@ export function Survey({
       setAnswers({});
       setOthers({});
       setOtherOpen({});
+      setExistingDraft(null);
       setIndex(0);
       setStartedAt(0);
       setPhase("intro");
@@ -613,22 +618,79 @@ export function Survey({
         <h1 className="text-3xl font-semibold leading-tight tracking-tight sm:text-4xl">{title}</h1>
         <p className="whitespace-pre-line text-[15px] leading-relaxed text-muted">{intro}</p>
         <div>
-          <Continue
-            label="Start"
-            onClick={() => {
-              const now = Date.now();
-              setStartedAt(now);
-              setPhase("asking");
-              saveDraft({
-                index: 0,
-                answers: {},
-                others: {},
-                otherOpen: {},
-                startedAt: now,
-                source,
-              });
-            }}
-          />
+          {existingDraft ? (
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+              <Continue
+                label={`Resume survey (Question ${questions[existingDraft.index]?.order ?? existingDraft.index + 1} of ${questions.length})`}
+                onClick={() => {
+                  if (typeof window !== "undefined") {
+                    window.sessionStorage?.setItem("framna_survey_active", "1");
+                  }
+                  setIndex(existingDraft.index);
+                  setResumedFrom(existingDraft.index);
+                  setPhase("asking");
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  clearDraft();
+                  void resetSessionAction().catch(() => {});
+                  setAnswers({});
+                  setOthers({});
+                  setOtherOpen({});
+                  setExistingDraft(null);
+                  const now = Date.now();
+                  setStartedAt(now);
+                  setIndex(0);
+                  setResumedFrom(null);
+                  if (typeof window !== "undefined") {
+                    window.sessionStorage?.setItem("framna_survey_active", "1");
+                  }
+                  setPhase("asking");
+                  saveDraft({
+                    index: 0,
+                    answers: {},
+                    others: {},
+                    otherOpen: {},
+                    startedAt: now,
+                    source,
+                  });
+                }}
+                className="mt-2 rounded-xl border border-line px-5 py-3 text-sm font-medium text-muted transition-colors hover:border-accent/50 hover:text-ink"
+              >
+                Start fresh
+              </button>
+            </div>
+          ) : (
+            <Continue
+              label="Start"
+              onClick={() => {
+                clearDraft();
+                void resetSessionAction().catch(() => {});
+                setAnswers({});
+                setOthers({});
+                setOtherOpen({});
+                setExistingDraft(null);
+                const now = Date.now();
+                setStartedAt(now);
+                setIndex(0);
+                setResumedFrom(null);
+                if (typeof window !== "undefined") {
+                  window.sessionStorage?.setItem("framna_survey_active", "1");
+                }
+                setPhase("asking");
+                saveDraft({
+                  index: 0,
+                  answers: {},
+                  others: {},
+                  otherOpen: {},
+                  startedAt: now,
+                  source,
+                });
+              }}
+            />
+          )}
         </div>
       </section>
     );
@@ -683,8 +745,8 @@ export function Survey({
             <span className="h-2 w-2 shrink-0 rounded-full bg-accent animate-pulse" />
             <span>
               Resumed where you left off (question{" "}
-              {getActiveIndex(questions, resumedFrom, answers, others) + 1} of{" "}
-              {activeQuestions.length})
+              {questions[resumedFrom]?.order ?? resumedFrom + 1} of{" "}
+              {questions.length})
             </span>
           </div>
           <div className="flex items-center gap-3">
@@ -707,11 +769,13 @@ export function Survey({
         </aside>
       )}
 
-      <Progress current={activeIndex + (answered ? 1 : 0)} total={activeQuestions.length} />
-
+      <Progress current={question.order} total={questions.length} />
 
       <div key={index} className={`flex flex-1 flex-col gap-6 ${back ? "enter-back" : "enter-forward"}`}>
         <header className="flex flex-col gap-2">
+          <span className="font-mono text-xs uppercase tracking-wider text-accent font-semibold">
+            Question {question.order} of {questions.length}
+          </span>
           <h2 className="text-xl font-semibold leading-snug tracking-tight sm:text-2xl">
             {question.title}
           </h2>

@@ -119,10 +119,11 @@ export function saveDraft(data: {
 }
 
 export function clearDraft(): void {
-  if (typeof window === "undefined" || !window.localStorage) return;
+  if (typeof window === "undefined") return;
 
   try {
-    window.localStorage.removeItem(STORAGE_KEY);
+    window.localStorage?.removeItem(STORAGE_KEY);
+    window.sessionStorage?.removeItem("framna_survey_active");
   } catch (error) {
     console.warn("Failed to clear survey draft from localStorage", error);
   }
